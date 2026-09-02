@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Moglix IntelliDesk</title>
+  <style>
+    :root {
+      --brand: #c5232d; --brand-soft: #fde8ea; --ink: #1c1c1e; --ink-muted: #8e8e96;
+      --surface: #fff; --base: #e8e8ea; --rule: #d8d8de; --ok: #1f7a4d; --warn: #a65f00;
+      --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font); background: var(--base); color: var(--ink); }
+    a { color: var(--brand); text-decoration: none; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; background: var(--surface); border-bottom: 1px solid var(--rule); }
+    .topbar-portal { border-bottom-color: #c5d9f7; }
+    .topbar-desk { border-bottom-color: var(--rule); }
+    .brand { font-weight: 700; font-size: 16px; }
+    .nav { display: flex; gap: 12px; flex-wrap: wrap; }
+    .nav a { color: var(--ink); font-size: 14px; padding: 6px 10px; border-radius: 6px; }
+    .nav a.active { background: var(--brand-soft); color: var(--brand); }
+    .main { max-width: 1100px; margin: 0 auto; padding: 24px 20px 48px; }
+    .card { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+    .btn { background: var(--brand); color: #fff; border: 0; border-radius: 6px; padding: 10px 16px; font-weight: 600; cursor: pointer; }
+    .btn-ghost { background: transparent; color: var(--ink); border: 1px solid var(--rule); }
+    .btn-sm { padding: 6px 12px; font-size: 13px; }
+    input, select, textarea { width: 100%; padding: 10px; border: 1px solid var(--rule); border-radius: 6px; margin: 6px 0 14px; font: inherit; }
+    label { font-size: 13px; font-weight: 600; display: block; }
+    .hero { display: grid; grid-template-columns: 1fr 380px; gap: 32px; align-items: start; }
+    @media (max-width: 900px) { .hero { grid-template-columns: 1fr; } }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .stat { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; }
+    .stat strong { font-size: 28px; display: block; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--rule); }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #e8f0fe; }
+    .pill-done { background: var(--ok); color: #fff; }
+    .pill-breach { background: #fde8ea; color: var(--brand); }
+    .thread { display: flex; flex-direction: column; gap: 10px; }
+    .msg { padding: 12px; border-radius: 8px; background: #f4f4f6; }
+    .msg.note { background: #fff8e6; border: 1px solid #f0d78c; }
+    .meta { font-size: 12px; color: var(--ink-muted); margin-bottom: 6px; }
+    .banner { padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; }
+    .banner-success { background: #e6f4ec; color: var(--ok); }
+    .banner-warn { background: #fff4e0; color: var(--warn); }
+    .workbench { display: grid; grid-template-columns: 1fr 320px; gap: 20px; }
+    @media (max-width: 900px) { .workbench { grid-template-columns: 1fr; } }
+    .footer { text-align: center; font-size: 12px; color: var(--ink-muted); padding: 24px; }
+    .hidden { display: none !important; }
+    .composer-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+    .composer-tab { padding: 8px 12px; border: 1px solid var(--rule); border-radius: 6px; background: #fff; cursor: pointer; }
+    .composer-tab.active { border-color: var(--brand); background: var(--brand-soft); }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script>
+    const STORAGE_KEY = 'intellidesk_demo_v1';
+    const USERS = {
+      'employee@moglix.com': { name: 'Rahul Employee', role: 'requester', group: null },
+      'agent@moglix.com': { name: 'Tech Agent', role: 'agent', group: 'Tech Support Team' },
+      'supervisor@moglix.com': { name: 'Desk Supervisor', role: 'supervisor', group: 'Tech Support Team' },
+      'admin@moglix.com': { name: 'Desk Admin', role: 'admin', group: null },
+    };
+    const TEAMS = ['Tech Support Team', 'Customer Care', 'UAE Helpdesk'];
+
+    function load() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || seed(); } catch { return seed(); }
+    }
+    function save(state) { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    function seed() {
+      const now = new Date().toISOString();
+      const state = {
+        session: null,
+        counter: 2176597,
+        tickets: [{
+          id: 1, number: 2176596, display: 'INC-2176596', subject: 'VPN not connecting (demo)',
+          description: 'Cannot access internal tools from home.', team: 'Tech Support Team', group: 'Tech Support Team',
+          requesterId: 1, assigneeId: 2, status: 'Open', source: 'portal',
+          messages: [{ id: 1, authorId: 1, body: 'Cannot access internal tools from home.', type: 'public', at: now }],
+          outbox: [], createdAt: now, updatedAt: now, respondBy: now, resolveBy: now, firstResponseAt: null,
+          resolutionNote: '', slaBreached: false,
+        }],
+        users: [
+          { id: 1, email: 'employee@moglix.com', ...USERS['employee@moglix.com'] },
+          { id: 2, email: 'agent@moglix.com', ...USERS['agent@moglix.com'] },
+          { id: 3, email: 'supervisor@moglix.com', ...USERS['supervisor@moglix.com'] },
+          { id: 4, email: 'admin@moglix.com', ...USERS['admin@moglix.com'] },
+        ],
+      };
+      save(state);
+      return state;
+    }
+
+    let state = load();
+    function user() { return state.users.find(u => u.id === state.session); }
+    function ticket(id) { return state.tickets.find(t => t.id === id); }
+    function uname(id) { return state.users.find(u => u.id === id)?.name || 'System'; }
+
+    function route() {
+      const h = location.hash.slice(1) || '/';
+      const parts = h.split('/').filter(Boolean);
+      return { path: h, parts };
+    }
+
+    function go(path) { location.hash = path; render(); }
+
+    function login(email) {
+      const u = state.users.find(x => x.email === email);
+      if (!u) return false;
+      state.session = u.id;
+      save(state);
+      if (u.role === 'requester') go('/portal'); else go(u.role === 'supervisor' ? '/supervisor' : '/agent');
+      return true;
+    }
+
+    function logout() { state.session = null; save(state); go('/'); }
+
+    function guardStaff() {
+      const u = user();
+      if (!u || u.role === 'requester') { go('/'); return false; }
+      return true;
+    }
+    function guardRequester() {
+      const u = user();
+      if (!u || u.role !== 'requester') { go(u?.role === 'supervisor' ? '/supervisor' : '/agent'); return false; }
+      return true;
+    }
+
+    function createTicket(data) {
+      const num = state.counter++;
+      const now = new Date().toISOString();
+      const t = {
+        id: state.tickets.length + 1, number: num, display: 'INC-' + num,
+        subject: data.subject, description: data.description, team: data.team, group: 'Tech Support Team',
+        requesterId: user().id, assigneeId: 2, status: 'Open', source: 'portal',
+        messages: [{ id: Date.now(), authorId: user().id, body: data.description, type: 'public', at: now }],
+        outbox: [], createdAt: now, updatedAt: now, respondBy: now, resolveBy: now,
+        firstResponseAt: null, resolutionNote: '', slaBreached: false,
+      };
+      queueMail(t, 'employee@moglix.com', 'ticket_created', '[' + t.display + '] ' + t.subject);
+      state.tickets.unshift(t);
+      save(state);
+      return t;
+    }
+
+    function queueMail(t, to, event, subject, body) {
+      t.outbox.push({ to, event, subject, body: body || subject, at: new Date().toISOString() });
+      if (!state.outbox) state.outbox = [];
+      state.outbox.unshift({ ticketId: t.id, to, event, subject, at: new Date().toISOString() });
+    }
+
+    function addMessage(tid, body, type) {
+      const t = ticket(tid);
+      const u = user();
+      const now = new Date().toISOString();
+      t.messages.push({ id: Date.now(), authorId: u.id, body, type, at: now });
+      t.updatedAt = now;
+      if (type === 'public') {
+        const isReq = u.id === t.requesterId;
+        const to = isReq ? 'agent@moglix.com' : state.users.find(x => x.id === t.requesterId)?.email;
+        queueMail(t, to, isReq ? 'requester_reply' : 'agent_reply', 'Re: [' + t.display + ']');
+        if (!t.firstResponseAt && !isReq) t.firstResponseAt = now;
+        if (['Resolved', 'Closed', 'Interim Resolve'].includes(t.status)) {
+          t.status = 'Re-Open'; t.resolutionNote = '';
+        }
+      }
+      save(state);
+    }
+
+    function updateTicket(tid, patch) {
+      const t = ticket(tid);
+      Object.assign(t, patch, { updatedAt: new Date().toISOString() });
+      if (patch.status === 'Resolved' && patch.resolutionNote) {
+        queueMail(t, state.users.find(x => x.id === t.requesterId)?.email, 'resolved', 'Resolved: ' + t.display);
+      }
+      save(state);
+    }
+
+    function shell(title, nav, body, kind) {
+      return '<header class="topbar topbar-' + kind + '"><div class="brand">' + title + '</div><nav class="nav">' + nav +
+        '</nav><button class="btn btn-ghost btn-sm" onclick="logout()">Sign out</button></header><main class="main">' + body + '</main>';
+    }
+
+    function renderLogin() {
+      const opts = Object.keys(USERS).map(e => '<option value="' + e + '">' + USERS[e].name + ' — ' + USERS[e].role + '</option>').join('');
+      document.getElementById('app').innerHTML = '<div class="main hero"><div><h1>Moglix IntelliDesk</h1><p>Employee portal and agent desk MVP prototype. Runs in your browser on GitHub Pages.</p></div><div class="card"><h2>Sign in</h2><label>Account</label><select id="email">' + opts + '</select><button class="btn" style="width:100%" onclick="login(document.getElementById(\'email\').value)">Continue</button></div></div><p class="footer">Browser demo for GitHub Pages · Full SQLite prototype: clone repo and run <code>npm run start:demo</code></p>';
+    }
+
+    function renderPortal() {
+      if (!guardRequester()) return;
+      const u = user();
+      const mine = state.tickets.filter(t => t.requesterId === u.id);
+      const nav = '<a href="#/portal" class="active">Home</a><a href="#/portal/tickets">My requests</a><a href="#/portal/new">Report incident</a>';
+      const rows = mine.slice(0, 5).map(t => '<tr><td><a href="#/portal/tickets/' + t.id + '">' + t.display + '</a></td><td>' + esc(t.subject) + '</td><td><span class="pill">' + t.status + '</span></td></tr>').join('');
+      const body = '<h1>Hello, ' + esc(u.name.split(' ')[0]) + '</h1><div class="stats"><div class="stat"><strong>' + mine.filter(t => t.status !== 'Closed' && t.status !== 'Resolved').length + '</strong>Open</div><div class="stat"><strong>' + mine.length + '</strong>Total</div></div><div class="card"><h3>Recent requests</h3><table><thead><tr><th>Ticket</th><th>Subject</th><th>Status</th></tr></thead><tbody>' + (rows || '<tr><td colspan="3">No tickets yet</td></tr>') + '</tbody></table><p><a class="btn btn-sm" href="#/portal/new">Report an incident</a></p></div>';
+      document.getElementById('app').innerHTML = shell('Moglix Help', nav, body, 'portal');
+    }
+
+    function renderPortalNew() {
+      if (!guardRequester()) return;
+      const nav = '<a href="#/portal">Home</a><a href="#/portal/tickets">My requests</a><a href="#/portal/new" class="active">Report incident</a>';
+      const opts = TEAMS.map(t => '<option>' + t + '</option>').join('');
+      const body = '<h1>Report an incident</h1><div class="card"><label>Support team</label><select id="team">' + opts + '</select><label>Subject</label><input id="subj" /><label>Description</label><textarea id="desc" rows="5"></textarea><button class="btn" onclick="submitIncident()">Submit</button></div>';
+      document.getElementById('app').innerHTML = shell('Moglix Help', nav, body, 'portal');
+    }
+
+    function submitIncident() {
+      const t = createTicket({ subject: document.getElementById('subj').value, description: document.getElementById('desc').value, team: document.getElementById('team').value });
+      go('/portal/tickets/' + t.id);
+    }
+
+    function renderPortalTickets() {
+      if (!guardRequester()) return;
+      const u = user();
+      const mine = state.tickets.filter(t => t.requesterId === u.id);
+      const nav = '<a href="#/portal">Home</a><a href="#/portal/tickets" class="active">My requests</a><a href="#/portal/new">Report incident</a>';
+      const rows = mine.map(t => '<tr><td><a href="#/portal/tickets/' + t.id + '">' + t.display + '</a></td><td>' + esc(t.subject) + '</td><td>' + t.status + '</td></tr>').join('');
+      document.getElementById('app').innerHTML = shell('Moglix Help', nav, '<h1>My requests</h1><div class="card"><table><thead><tr><th>Ticket</th><th>Subject</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>', 'portal');
+    }
+
+    function renderPortalTicket(id) {
+      if (!guardRequester()) return;
+      const t = ticket(+id);
+      if (!t) return go('/portal');
+      const nav = '<a href="#/portal">Home</a><a href="#/portal/tickets">My requests</a><a href="#/portal/new">Report incident</a>';
+      const msgs = t.messages.filter(m => m.type === 'public').map(m => '<div class="msg"><div class="meta">' + uname(m.authorId) + ' · ' + new Date(m.at).toLocaleString() + '</div><div>' + esc(m.body) + '</div></div>').join('');
+      const reply = t.status !== 'Closed' ? '<textarea id="reply" rows="3"></textarea><button class="btn" onclick="addMessage(' + t.id + ',document.getElementById(\'reply\').value,\'public\');render()">Send reply</button>' : '<p>Ticket closed.</p>';
+      document.getElementById('app').innerHTML = shell('Moglix Help', nav, '<h1>' + esc(t.subject) + '</h1><p>' + t.display + '</p><div class="card"><span class="pill">' + t.status + '</span><div class="thread" style="margin-top:16px">' + msgs + '</div>' + reply + '</div>', 'portal');
+    }
+
+    function renderAgent() {
+      if (!guardStaff()) return;
+      const u = user();
+      let list = state.tickets;
+      if (u.role === 'agent') list = list.filter(t => t.group === u.group);
+      const nav = '<a href="#/agent" class="active">Queue</a><a href="#/supervisor">Reports</a><a href="#/mail">Mail</a>';
+      const rows = list.map(t => '<tr><td><a href="#/agent/tickets/' + t.id + '">' + t.display + '</a></td><td>' + esc(t.subject) + '</td><td>' + uname(t.requesterId) + '</td><td><span class="pill">' + t.status + '</span></td><td>' + (t.assigneeId ? uname(t.assigneeId) : '—') + '</td></tr>').join('');
+      document.getElementById('app').innerHTML = shell('Agent Desk', nav, '<h1>Agent queue</h1><div class="card" style="padding:0"><table><thead><tr><th>Ticket</th><th>Subject</th><th>Requester</th><th>Status</th><th>Assignee</th></tr></thead><tbody>' + rows + '</tbody></table></div>', 'desk');
+    }
+
+    function renderAgentTicket(id) {
+      if (!guardStaff()) return;
+      const t = ticket(+id);
+      if (!t) return go('/agent');
+      const nav = '<a href="#/agent">Queue</a><a href="#/supervisor">Reports</a><a href="#/mail">Mail</a>';
+      const msgs = t.messages.map(m => '<div class="msg ' + (m.type === 'note' ? 'note' : '') + '"><div class="meta">' + uname(m.authorId) + ' · ' + m.type + '</div><div>' + esc(m.body) + '</div></div>').join('');
+      const side = '<div class="card"><label>Status</label><select id="status"><option>Open</option><option>Pending</option><option>Resolved</option><option>Closed</option></select><label>Resolution note</label><textarea id="resnote" rows="3">' + esc(t.resolutionNote || '') + '</textarea><button class="btn" style="width:100%;margin-top:8px" onclick="updateTicket(' + t.id + ',{status:document.getElementById(\'status\').value,resolutionNote:document.getElementById(\'resnote\').value});render()">Save</button></div>';
+      document.getElementById('app').innerHTML = shell('Agent Desk', nav, '<h1>' + esc(t.subject) + '</h1><div class="workbench"><div class="card"><div class="thread">' + msgs + '</div><div class="composer-tabs"><button class="composer-tab active" id="tab-pub" onclick="setComposer(\'public\')">Public reply</button><button class="composer-tab" id="tab-note" onclick="setComposer(\'note\')">Internal note</button></div><textarea id="agentmsg" rows="3"></textarea><button class="btn" onclick="agentSend(' + t.id + ')">Send</button></div>' + side + '</div>', 'desk');
+      document.getElementById('status').value = t.status;
+    }
+
+    let composerMode = 'public';
+    function setComposer(m) { composerMode = m; document.getElementById('tab-pub').classList.toggle('active', m === 'public'); document.getElementById('tab-note').classList.toggle('active', m === 'note'); }
+    function agentSend(id) { addMessage(id, document.getElementById('agentmsg').value, composerMode); document.getElementById('agentmsg').value = ''; render(); }
+
+    function renderSupervisor() {
+      if (!guardStaff()) return;
+      const u = user();
+      let list = state.tickets;
+      if (u.role === 'supervisor') list = list.filter(t => t.group === u.group);
+      const nav = '<a href="#/agent">Queue</a><a href="#/supervisor" class="active">Reports</a><a href="#/mail">Mail</a>';
+      const open = list.filter(t => !['Resolved', 'Closed'].includes(t.status)).length;
+      const body = '<h1>Supervisor report</h1><div class="stats"><div class="stat"><strong>' + open + '</strong>Open</div><div class="stat"><strong>' + list.length + '</strong>Total</div><div class="stat"><strong>' + list.filter(t => t.slaBreached).length + '</strong>SLA breached</div></div>';
+      document.getElementById('app').innerHTML = shell('Agent Desk', nav, body, 'desk');
+    }
+
+    function renderMail() {
+      if (!guardStaff()) return;
+      const nav = '<a href="#/agent">Queue</a><a href="#/supervisor">Reports</a><a href="#/mail" class="active">Mail</a>';
+      const out = (state.outbox || []).map(o => '<div class="msg"><div class="meta">' + o.event + ' → ' + o.to + '</div><strong>' + esc(o.subject) + '</strong></div>').join('') || '<p>No outbound mail yet.</p>';
+      const body = '<h1>Mail simulator</h1><div class="grid-2"><div class="card"><label>Subject (use [INC-…] to thread)</label><input id="msub" value="Re: [INC-2176596] Follow up" /><label>Body</label><textarea id="mbody" rows="4">Still having issues.</textarea><button class="btn" onclick="processMail()">Process inbound</button></div><div class="card"><h3>Outbox</h3>' + out + '</div></div>';
+      document.getElementById('app').innerHTML = shell('Agent Desk', nav, body, 'desk');
+    }
+
+    function processMail() {
+      const sub = document.getElementById('msub').value;
+      const m = sub.match(/INC-\d+/);
+      if (m) {
+        const t = state.tickets.find(x => x.display === m[0]);
+        if (t) { addMessage(t.id, document.getElementById('mbody').value, 'public'); go('/agent/tickets/' + t.id); return; }
+      }
+      alert('No matching ticket — include [INC-…] in subject');
+    }
+
+    function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    function render() {
+      state = load();
+      const { parts } = route();
+      if (!state.session) return renderLogin();
+      if (parts[0] === 'portal') {
+        if (parts[1] === 'new') return renderPortalNew();
+        if (parts[1] === 'tickets' && parts[2]) return renderPortalTicket(parts[2]);
+        if (parts[1] === 'tickets') return renderPortalTickets();
+        return renderPortal();
+      }
+      if (parts[0] === 'agent') {
+        if (parts[1] === 'tickets' && parts[2]) return renderAgentTicket(parts[2]);
+        return renderAgent();
+      }
+      if (parts[0] === 'supervisor') return renderSupervisor();
+      if (parts[0] === 'mail') return renderMail();
+      const u = user();
+      go(u.role === 'requester' ? '/portal' : u.role === 'supervisor' ? '/supervisor' : '/agent');
+    }
+
+    window.login = login; window.logout = logout; window.render = render;
+    window.addMessage = addMessage; window.updateTicket = updateTicket; window.submitIncident = submitIncident;
+    window.setComposer = setComposer; window.agentSend = agentSend; window.processMail = processMail;
+    window.addEventListener('hashchange', render);
+    render();
+  </script>
+</body>
+</html>

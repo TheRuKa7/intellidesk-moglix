@@ -1,0 +1,38 @@
+{
+  "name": "moglix-intellidesk",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "dev": "next dev -p 3020",
+    "dev:clean": "node scripts/kill-port.mjs 3020 && next dev -p 3020",
+    "build": "next build",
+    "build:pages": "node scripts/build-github-pages.mjs",
+    "start": "next start -p 3020",
+    "start:demo": "npm run build && next start -p 3020",
+    "seed": "tsx scripts/seed.ts",
+    "test": "npm run test:e2e && npm run test:roles && npm run test:smoke",
+    "test:e2e": "tsx scripts/e2e-test.ts",
+    "test:http": "npm run build && tsx scripts/e2e-http.ts",
+    "test:roles": "tsx scripts/role-separation-test.ts",
+    "test:smoke": "tsx scripts/smoke-test.ts",
+    "audit:check": "npm audit --audit-level=high"
+  },
+  "dependencies": {
+    "next": "16.3.4",
+    "react": "19.1.2",
+    "react-dom": "19.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "@types/react": "^19.1.6",
+    "@types/react-dom": "^19.1.5",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  },
+  "overrides": {
+    "postcss": "8.5.26"
+  }
+}

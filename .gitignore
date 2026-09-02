@@ -1,0 +1,6 @@
+data/
+.next/
+out/
+node_modules/
+*.db-shm
+*.db-wal
