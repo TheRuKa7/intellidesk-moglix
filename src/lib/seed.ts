@@ -9,12 +9,40 @@ import {
 } from './constants';
 import { getDb } from './db';
 import { computeSlaDeadlines } from './sla';
+import { seedHolidays } from './holidays';
 
 export function isSeeded(): boolean {
   const row = getDb().prepare('SELECT value FROM settings WHERE key = ?').get('seeded') as
     | { value: string }
     | undefined;
   return row?.value === 'true';
+}
+
+/** Upsert statuses on every boot so existing DBs gain workbook-aligned states */
+export function ensureStatuses(db: ReturnType<typeof getDb>) {
+  const oldTreasury = db
+    .prepare("SELECT id FROM statuses WHERE name = 'Treasury Approval Awaited'")
+    .get() as { id: number } | undefined;
+  const newTreasury = db
+    .prepare("SELECT id FROM statuses WHERE name = 'Treasury Action Awaited'")
+    .get() as { id: number } | undefined;
+  if (oldTreasury && newTreasury) {
+    db.prepare('UPDATE tickets SET status_id = ? WHERE status_id = ?').run(
+      newTreasury.id,
+      oldTreasury.id,
+    );
+    db.prepare('DELETE FROM statuses WHERE id = ?').run(oldTreasury.id);
+  } else if (oldTreasury) {
+    db.prepare(
+      "UPDATE statuses SET name = 'Treasury Action Awaited' WHERE name = 'Treasury Approval Awaited'",
+    ).run();
+  }
+  const insert = db.prepare(
+    'INSERT OR IGNORE INTO statuses (name, category, sla_clock) VALUES (?, ?, ?)',
+  );
+  for (const s of STATUSES) {
+    insert.run(s.name, s.category, s.slaClock);
+  }
 }
 
 function seedDemoTicket(db: ReturnType<typeof getDb>) {
@@ -57,8 +85,11 @@ function seedDemoTicket(db: ReturnType<typeof getDb>) {
 
 export function seedDatabase() {
   const db = getDb();
+  ensureStatuses(db);
+  seedHolidays(db);
   if (isSeeded()) {
     seedDemoTicket(db);
+    seedSlaPolicies(db);
     return;
   }
 
@@ -71,10 +102,10 @@ export function seedDatabase() {
     db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('seeded', 'true');
 
     const insertUser = db.prepare(
-      'INSERT INTO users (email, name, role, group_name) VALUES (?, ?, ?, ?)',
+      'INSERT INTO users (email, name, role, group_name, department) VALUES (?, ?, ?, ?, ?)',
     );
     for (const u of DEMO_USERS) {
-      insertUser.run(u.email, u.name, u.role, u.group);
+      insertUser.run(u.email, u.name, u.role, u.group, u.role === 'requester' ? 'Engineering' : 'IT');
     }
 
     const insertGroup = db.prepare(
@@ -100,10 +131,22 @@ export function seedDatabase() {
     }
 
     seedDemoTicket(db);
+    seedSlaPolicies(db);
 
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
     throw error;
   }
+}
+
+function seedSlaPolicies(db: ReturnType<typeof getDb>) {
+  const count = (db.prepare('SELECT COUNT(*) as c FROM sla_policies').get() as { c: number }).c;
+  if (count > 0) return;
+  const insert = db.prepare(
+    'INSERT INTO sla_policies (name, group_name, respond_hours, resolve_hours, active, sort_order) VALUES (?, ?, ?, ?, 1, ?)',
+  );
+  insert.run('Tech Support SLA', 'Tech Support Team', 1, 8, 10);
+  insert.run('Customer Care SLA', 'Customer Care', 4, 24, 20);
+  insert.run('Default SLA', null, 8, 72, 100);
 }

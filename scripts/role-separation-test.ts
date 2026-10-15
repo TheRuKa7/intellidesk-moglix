@@ -28,8 +28,11 @@ assert(!isRequester(agent as never), 'agent is not requester');
 
 assert(getRequesterHome() === '/portal', 'requester home');
 assert(getStaffHomeForRole('agent') === '/agent', 'agent home');
-assert(getStaffHomeForRole('supervisor') === '/supervisor', 'supervisor home');
-assert(getStaffHomeForRole('admin') === '/agent', 'admin home');
+assert(
+  getStaffHomeForRole('supervisor') === '/agent?view=open',
+  'supervisor home is open queue (MVP; no Phase 4 reporting nav)',
+);
+assert(getStaffHomeForRole('admin') === '/admin', 'admin home');
 
 const ticket = getDb()
   .prepare('SELECT * FROM tickets WHERE requester_id = ? ORDER BY id DESC LIMIT 1')
@@ -53,7 +56,9 @@ if (ticket) {
 
 console.log('Role separation checks passed.');
 console.log('  Requester → /portal only (layout blocks /agent)');
-console.log('  Staff → /agent, /supervisor, /mail (layout blocks /portal)');
+console.log('  Agent → /agent; Admin → /admin; Supervisor → /agent?view=open');
+console.log('  Inbound QA at /mail; create at /agent/new');
+console.log('  Phase 4 Reporting (/supervisor) is redirected — not in MVP chrome');
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(`FAIL: ${msg}`);

@@ -1,8 +1,17 @@
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { getDb, type UserRow } from './db';
+import {
+  createSession,
+  isSessionValid,
+  revokeAllSessionsForUser,
+  revokeSession,
+  userHasPrivilege,
+} from './platform';
+import type { PrivilegeKey } from './privileges';
 
 const SESSION_COOKIE = 'intellidesk_user';
+const SESSION_TOKEN_COOKIE = 'intellidesk_session';
 
 export type UserRole = 'requester' | 'agent' | 'supervisor' | 'admin';
 
@@ -10,9 +19,20 @@ export async function getSessionUser(): Promise<UserRow | null> {
   const cookieStore = await cookies();
   const userId = cookieStore.get(SESSION_COOKIE)?.value;
   if (!userId) return null;
-  return getDb()
-    .prepare('SELECT id, email, name, role, group_name, department FROM users WHERE id = ? AND active = 1')
-    .get(Number(userId)) as UserRow | undefined ?? null;
+
+  const token = cookieStore.get(SESSION_TOKEN_COOKIE)?.value;
+  // Enforce only when a session token exists (demo HTTP tests may set user cookie alone).
+  if (token && !isSessionValid(token)) {
+    return null;
+  }
+
+  return (
+    (getDb()
+      .prepare(
+        'SELECT id, email, name, role, group_name, department FROM users WHERE id = ? AND active = 1',
+      )
+      .get(Number(userId)) as UserRow | undefined) ?? null
+  );
 }
 
 export async function setSessionUser(userId: number) {
@@ -22,11 +42,28 @@ export async function setSessionUser(userId: number) {
     sameSite: 'lax',
     path: '/',
   });
+  const token = createSession(userId);
+  cookieStore.set(SESSION_TOKEN_COOKIE, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+  });
 }
 
 export async function clearSession() {
   const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_TOKEN_COOKIE)?.value;
+  if (token) revokeSession(token);
   cookieStore.delete(SESSION_COOKIE);
+  cookieStore.delete(SESSION_TOKEN_COOKIE);
+}
+
+export async function forceLogoutUser(userId: number, actorId: number) {
+  revokeAllSessionsForUser(userId, actorId);
+}
+
+export function userCan(user: UserRow, privilege: PrivilegeKey): boolean {
+  return userHasPrivilege(user.role, privilege);
 }
 
 export function isRequester(user: UserRow): boolean {
@@ -46,7 +83,8 @@ export function getStaffHome(user: UserRow): string {
 }
 
 export function getStaffHomeForRole(role: string): string {
-  if (role === 'supervisor') return '/supervisor';
+  if (role === 'admin') return '/admin';
+  if (role === 'supervisor') return '/agent?view=open';
   return '/agent';
 }
 
@@ -105,7 +143,6 @@ export function getTicketAccessRow(ticketId: number) {
 export async function requireTicketAccessOrNotFound(user: UserRow, ticketId: number) {
   const ticket = getTicketAccessRow(ticketId);
   if (!ticket || !canViewTicket(user, ticket)) {
-    const { notFound } = await import('next/navigation');
     notFound();
   }
   return ticket;

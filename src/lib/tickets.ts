@@ -1,7 +1,25 @@
 import { PILOT_GROUP, PILOT_MAILBOX } from './constants';
+import { storeAttachmentFile } from './attachments';
+import { assertAttachmentWithinLimit } from './attachment-limits';
 import { getAuditForTicket, writeAudit } from './audit';
 import { getDb } from './db';
+import { type ParsedInboundEmail } from './email-parser';
+import { sendMail } from './mail-transport';
+import { renderNotification, type NotificationEvent } from './notifications';
 import { computeSlaDeadlines, evaluateSlaBreach, shouldAutoClose } from './sla';
+import { ticketDueToday } from './format';
+import { incrementMetric, logEvent } from './observability';
+import {
+  deleteSpamQuarantine,
+  getSpamQuarantineById,
+  isAllowedSenderDomain,
+  isNotificationEventEnabled,
+  notifyUser,
+  notifyWatchers,
+  quarantineSpam,
+} from './platform';
+import { normalizeDisplayNumber, ticketIdPrefix, ticketNumberPattern } from './ticket-id';
+import { resolveEffectiveTicketId } from './ticket-relations';
 
 function parseCustomFields(raw: unknown): Record<string, string> {
   if (!raw || typeof raw !== 'string') return {};
@@ -25,7 +43,8 @@ function nextTicketNumber(): { number: number; display: string } {
   };
   const number = Number(row.value);
   db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(String(number + 1), 'ticket_counter');
-  return { number, display: `INC-${number}` };
+  const prefix = ticketIdPrefix();
+  return { number, display: `${prefix}${number}` };
 }
 
 function getStatusId(name: string): number {
@@ -48,15 +67,25 @@ function queueMail(
   ticketId: number,
   to: string,
   subject: string,
-  body: string,
-  event: string,
+  event: NotificationEvent,
+  templateData: Record<string, unknown>,
   cc?: string,
+  fromMailbox?: string | null,
 ) {
+  if (!isNotificationEventEnabled(event)) {
+    logEvent('info', 'notification_suppressed', { event, ticketId });
+    return;
+  }
+  const body = renderNotification(event, templateData);
+  const from = fromMailbox ?? PILOT_MAILBOX;
   getDb()
     .prepare(
       'INSERT INTO mail_outbox (ticket_id, to_addr, cc_addr, subject, body, event, sent_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
     )
     .run(ticketId, to, cc ?? null, subject, body, event, nowIso());
+  void sendMail({ from, to, cc, subject, text: body }).catch(() => {
+    /* prototype: outbox is source of truth */
+  });
 }
 
 function notifySlaBreach(ticket: Record<string, unknown>) {
@@ -71,12 +100,21 @@ function notifySlaBreach(ticket: Record<string, unknown>) {
     ticket.id as number,
     to,
     `SLA breached: [${ticket.display_number}] ${ticket.subject as string}`,
-    `Ticket ${ticket.display_number as string} has breached its SLA. Please review and add a breach reason.`,
     'sla_breach',
+    {
+      displayNumber: ticket.display_number,
+      subject: ticket.subject,
+    },
+    undefined,
+    (ticket.mailbox as string) ?? PILOT_MAILBOX,
   );
 }
 
 const REOPEN_STATUSES = ['Resolved', 'Interim Resolve', 'Closed'];
+
+export function isReopenStatus(statusName: string): boolean {
+  return REOPEN_STATUSES.includes(statusName);
+}
 
 function reopenTicket(ticketId: number, supportTeam: string, actorId: number, ts: string) {
   const openId = getStatusId('Re-Open');
@@ -142,7 +180,17 @@ function autoAssignToGroup(ticketId: number, groupName: string) {
     ticketId,
   );
   const agentUser = db.prepare('SELECT email FROM users WHERE id = ?').get(agent.id) as { email: string };
-  queueMail(ticketId, agentUser.email, `Assigned: ticket #${ticketId}`, 'You were auto-assigned this ticket.', 'assigned');
+  const ticket = getTicketById(ticketId);
+  queueMail(
+    ticketId,
+    agentUser.email,
+    `Assigned: [${ticket?.display_number ?? ticketId}]`,
+    'assigned',
+    {
+      displayNumber: ticket?.display_number ?? `#${ticketId}`,
+      subject: ticket?.subject ?? 'Ticket',
+    },
+  );
   writeAudit('ticket', ticketId, null, 'auto_assigned', String(agent.id));
 }
 
@@ -151,13 +199,15 @@ export function createTicket(input: {
   description: string;
   supportTeam: string;
   requesterId: number;
-  source: 'portal' | 'email';
+  source: 'portal' | 'email' | 'phone' | 'other';
   mailbox?: string;
   cc?: string;
   otherRemarks?: string;
   actorId?: number;
   groupName?: string;
   attachmentNames?: string[];
+  attachments?: { filename: string; data: Buffer; contentType?: string }[];
+  bodyHtml?: string;
 }) {
   const db = getDb();
   const createdAt = new Date();
@@ -199,9 +249,21 @@ export function createTicket(input: {
       saveAttachment(ticketId, filename, input.requesterId);
     }
   }
+  if (input.attachments?.length) {
+    for (const file of input.attachments) {
+      saveAttachment(ticketId, file.filename, input.requesterId, file.data, file.contentType);
+    }
+  }
   db.prepare(
-    'INSERT INTO messages (ticket_id, author_id, body, type, created_at) VALUES (?, ?, ?, ?, ?)',
-  ).run(ticketId, input.requesterId, input.description, 'public', createdAt.toISOString());
+    'INSERT INTO messages (ticket_id, author_id, body, body_html, type, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(
+    ticketId,
+    input.requesterId,
+    input.description,
+    input.bodyHtml ?? null,
+    'public',
+    createdAt.toISOString(),
+  );
 
   const requester = db.prepare('SELECT email, name FROM users WHERE id = ?').get(input.requesterId) as {
     email: string;
@@ -212,16 +274,30 @@ export function createTicket(input: {
     ticketId,
     requester.email,
     `[${display}] ${input.subject}`,
-    `We received your request (${display}).\n\n${input.description}`,
     'ticket_created',
+    {
+      requesterName: requester.name,
+      displayNumber: display,
+      subject: input.subject,
+      description: input.description,
+    },
     input.cc,
+    mailbox,
   );
   queueMail(
     ticketId,
     mailbox ?? 'team@moglix.com',
     `[${display}] New ticket for ${groupName}`,
-    `New ${input.source} ticket: ${input.subject}`,
     'team_notify',
+    {
+      source: input.source,
+      displayNumber: display,
+      groupName,
+      subject: input.subject,
+      description: input.description,
+    },
+    undefined,
+    mailbox,
   );
 
   writeAudit('ticket', ticketId, input.actorId ?? input.requesterId, 'created', input.source);
@@ -229,10 +305,26 @@ export function createTicket(input: {
   return getTicketById(ticketId);
 }
 
-export function saveAttachment(ticketId: number, filename: string, uploadedBy: number) {
+export function saveAttachment(
+  ticketId: number,
+  filename: string,
+  uploadedBy: number,
+  fileData?: Buffer,
+  contentType?: string,
+) {
+  let storageKey: string | null = null;
+  let sizeBytes: number | null = null;
+  if (fileData && fileData.length > 0) {
+    assertAttachmentWithinLimit(fileData.length);
+    const stored = storeAttachmentFile(filename, fileData);
+    storageKey = stored.storageKey;
+    sizeBytes = stored.sizeBytes;
+  }
   getDb()
-    .prepare('INSERT INTO attachments (ticket_id, filename, uploaded_by, created_at) VALUES (?, ?, ?, ?)')
-    .run(ticketId, filename, uploadedBy, nowIso());
+    .prepare(
+      'INSERT INTO attachments (ticket_id, filename, storage_key, size_bytes, content_type, uploaded_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    )
+    .run(ticketId, filename, storageKey, sizeBytes, contentType ?? null, uploadedBy, nowIso());
 }
 
 export function getAttachments(ticketId: number) {
@@ -254,18 +346,28 @@ export function getTicketById(id: number) {
 }
 
 export function getTicketByNumber(displayNumber: string) {
-  const normalized = displayNumber.replace(/\[|\]/g, '').trim();
+  const normalized = normalizeDisplayNumber(displayNumber);
   const ticket = getDb()
     .prepare('SELECT * FROM tickets WHERE display_number = ? AND deleted = 0')
-    .get(normalized.includes('INC-') ? normalized : `INC-${normalized}`) as Record<string, unknown> | undefined;
-  if (!ticket) return null;
+    .get(normalized) as Record<string, unknown> | undefined;
+  if (!ticket) {
+    // Legacy INC- lookups when prefix was customized
+    const alt = displayNumber.replace(/\[|\]/g, '').trim();
+    const fallback = getDb()
+      .prepare('SELECT * FROM tickets WHERE upper(display_number) = upper(?) AND deleted = 0')
+      .get(alt) as Record<string, unknown> | undefined;
+    if (!fallback) return null;
+    return enrichTicket(fallback);
+  }
   return enrichTicket(ticket);
 }
 
 function enrichTicket(ticket: Record<string, unknown>) {
   const db = getDb();
   const status = getStatusById(ticket.status_id as number);
-  const requester = db.prepare('SELECT id, name, email FROM users WHERE id = ?').get(ticket.requester_id as number);
+  const requester = db
+    .prepare('SELECT id, name, email, department FROM users WHERE id = ?')
+    .get(ticket.requester_id as number);
   const assignee = ticket.assignee_id
     ? db.prepare('SELECT id, name, email FROM users WHERE id = ?').get(ticket.assignee_id as number)
     : null;
@@ -289,7 +391,7 @@ function enrichTicket(ticket: Record<string, unknown>) {
   }
   return { ...ticket, status, requester, assignee, messages, attachments, custom_fields: parseCustomFields(ticket.custom_fields), sla_breached: breached ? 1 : ticket.sla_breached } as unknown as Record<string, unknown> & {
     status: { id: number; name: string; sla_clock: string };
-    requester: { id: number; name: string; email: string };
+    requester: { id: number; name: string; email: string; department?: string };
     assignee: { id: number; name: string; email: string } | null;
     messages: Record<string, unknown>[];
     attachments: Record<string, unknown>[];
@@ -305,17 +407,23 @@ export function listTickets(filters: {
   statusName?: string;
   search?: string;
   overdueOnly?: boolean;
+  unassignedOnly?: boolean;
   sortBy?: 'created_at' | 'updated_at' | 'display_number';
   sortDir?: 'asc' | 'desc';
 }) {
   let sql = `SELECT t.*, s.name as status_name, s.category as status_category, s.sla_clock,
     rq.name as requester_name, rq.email as requester_email,
-    ag.name as assignee_name
+    ag.name as assignee_name,
+    (
+      SELECT m.author_id FROM messages m
+      WHERE m.ticket_id = t.id AND m.type = 'public'
+      ORDER BY m.id DESC LIMIT 1
+    ) as last_public_author_id
     FROM tickets t
     JOIN statuses s ON s.id = t.status_id
     JOIN users rq ON rq.id = t.requester_id
     LEFT JOIN users ag ON ag.id = t.assignee_id
-    WHERE t.deleted = 0`;
+    WHERE t.deleted = 0 AND t.merged_into_id IS NULL`;
   const params: SqlParam[] = [];
 
   if (filters.groupName) {
@@ -329,6 +437,9 @@ export function listTickets(filters: {
   if (filters.assigneeId) {
     sql += ' AND t.assignee_id = ?';
     params.push(filters.assigneeId);
+  }
+  if (filters.unassignedOnly) {
+    sql += ' AND t.assignee_id IS NULL';
   }
   if (filters.statusCategory) {
     sql += ' AND s.category = ?';
@@ -371,7 +482,16 @@ export function listTickets(filters: {
 }
 
 export function exportTicketsCsv(tickets: Record<string, unknown>[]) {
-  const headers = ['display_number', 'subject', 'status_name', 'requester_name', 'assignee_name', 'created_at'];
+  const headers = [
+    'display_number',
+    'subject',
+    'priority',
+    'status_name',
+    'requester_name',
+    'assignee_name',
+    'created_at',
+    'updated_at',
+  ];
   const escape = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const lines = [headers.join(',')];
   for (const row of tickets) {
@@ -380,12 +500,25 @@ export function exportTicketsCsv(tickets: Record<string, unknown>[]) {
   return lines.join('\n');
 }
 
+export function getAdjacentTickets(
+  ticketId: number,
+  filters: Parameters<typeof listTickets>[0],
+) {
+  const tickets = listTickets(filters);
+  const idx = tickets.findIndex((t) => t.id === ticketId);
+  return {
+    prev: idx > 0 ? tickets[idx - 1] : null,
+    next: idx >= 0 && idx < tickets.length - 1 ? tickets[idx + 1] : null,
+  };
+}
+
 export function addMessage(input: {
   ticketId: number;
   authorId: number | null;
   body: string;
   type: 'public' | 'note';
   actorId: number;
+  bodyHtml?: string;
 }) {
   const db = getDb();
   const ticket = getTicketById(input.ticketId);
@@ -393,8 +526,8 @@ export function addMessage(input: {
 
   const ts = nowIso();
   db.prepare(
-    'INSERT INTO messages (ticket_id, author_id, body, type, created_at) VALUES (?, ?, ?, ?, ?)',
-  ).run(input.ticketId, input.authorId, input.body, input.type, ts);
+    'INSERT INTO messages (ticket_id, author_id, body, body_html, type, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(input.ticketId, input.authorId, input.body, input.bodyHtml ?? null, input.type, ts);
 
   if (input.type === 'public' && !ticket.first_response_at && input.authorId !== ticket.requester_id) {
     db.prepare('UPDATE tickets SET first_response_at = ?, updated_at = ? WHERE id = ?').run(ts, ts, input.ticketId);
@@ -414,10 +547,22 @@ export function addMessage(input: {
       input.ticketId,
       to,
       `Re: [${ticket.display_number}] ${ticket.subject}`,
-      `${author?.name ?? 'Agent'} wrote:\n\n${input.body}`,
       isRequesterReply ? 'requester_reply' : 'agent_reply',
+      {
+        authorName: author?.name ?? 'Agent',
+        displayNumber: ticket.display_number,
+        body: input.body,
+      },
       isRequesterReply ? undefined : ((ticket.cc as string) || undefined),
+      (ticket.mailbox as string) ?? PILOT_MAILBOX,
     );
+
+    notifyWatchers({
+      ticketId: input.ticketId,
+      title: `Update on ${ticket.display_number}`,
+      body: `${author?.name ?? 'Someone'} replied: ${ticket.subject}`,
+      excludeUserId: input.authorId ?? undefined,
+    });
   }
 
   if (input.type === 'public' && REOPEN_STATUSES.includes(ticket.status.name)) {
@@ -435,11 +580,50 @@ export function addMessage(input: {
   return getTicketById(input.ticketId);
 }
 
+export function forwardTicket(input: {
+  ticketId: number;
+  actorId: number;
+  to: string;
+  body: string;
+}) {
+  const ticket = getTicketById(input.ticketId);
+  if (!ticket) throw new Error('NOT_FOUND');
+  const actor = getDb().prepare('SELECT name FROM users WHERE id = ?').get(input.actorId) as
+    | { name: string }
+    | undefined;
+  const noteBody = `Forwarded to ${input.to} by ${actor?.name ?? 'agent'}:\n\n${input.body}`;
+  addMessage({
+    ticketId: input.ticketId,
+    authorId: input.actorId,
+    body: noteBody,
+    type: 'note',
+    actorId: input.actorId,
+  });
+  queueMail(
+    input.ticketId,
+    input.to,
+    `Fwd: [${ticket.display_number}] ${ticket.subject as string}`,
+    'agent_reply',
+    {
+      displayNumber: ticket.display_number,
+      authorName: actor?.name ?? 'Agent',
+      body: input.body,
+    },
+    undefined,
+    (ticket.mailbox as string) ?? PILOT_MAILBOX,
+  );
+  writeAudit('ticket', input.ticketId, input.actorId, 'forwarded', input.to);
+  return getTicketById(input.ticketId);
+}
+
 export function updateTicket(input: {
   ticketId: number;
   actorId: number;
   statusName?: string;
   assigneeId?: number | null;
+  priority?: string;
+  category?: string;
+  subcategory?: string;
   resolutionNote?: string;
   breachReason?: string;
   otherRemarks?: string;
@@ -471,9 +655,20 @@ export function updateTicket(input: {
         input.ticketId,
         requester.email,
         `Re: [${ticket.display_number}] Resolved`,
-        `Your ticket ${ticket.display_number} was resolved.\n\n${input.resolutionNote ?? ticket.resolution_note ?? ''}`,
         'resolved',
+        {
+          displayNumber: ticket.display_number,
+          resolutionNote: input.resolutionNote ?? ticket.resolution_note ?? '',
+        },
+        undefined,
+        (ticket.mailbox as string) ?? PILOT_MAILBOX,
       );
+      notifyWatchers({
+        ticketId: input.ticketId,
+        title: `${ticket.display_number} resolved`,
+        body: String(ticket.subject),
+        excludeUserId: input.actorId,
+      });
     }
     if (input.statusName === 'Closed') {
       updates.push('closed_at = ?');
@@ -483,9 +678,19 @@ export function updateTicket(input: {
         input.ticketId,
         requester.email,
         `Re: [${ticket.display_number}] Closed`,
-        `Your ticket ${ticket.display_number} is now closed.`,
         'closed',
+        {
+          displayNumber: ticket.display_number,
+        },
+        undefined,
+        (ticket.mailbox as string) ?? PILOT_MAILBOX,
       );
+      notifyWatchers({
+        ticketId: input.ticketId,
+        title: `${ticket.display_number} closed`,
+        body: String(ticket.subject),
+        excludeUserId: input.actorId,
+      });
     }
     values.push(input.ticketId);
     db.prepare(`UPDATE tickets SET ${updates.join(', ')} WHERE id = ?`).run(...values);
@@ -512,7 +717,39 @@ export function updateTicket(input: {
         input.ticketId,
       );
       writeAudit('ticket', input.ticketId, input.actorId, 'assigned', String(input.assigneeId));
+      if (input.assigneeId != null) {
+        notifyWatchers({
+          ticketId: input.ticketId,
+          title: `${ticket.display_number} reassigned`,
+          body: String(ticket.subject),
+          excludeUserId: input.actorId,
+        });
+      }
     }
+  }
+
+  if (input.priority && input.priority !== ticket.priority) {
+    db.prepare('UPDATE tickets SET priority = ?, updated_at = ? WHERE id = ?').run(
+      input.priority,
+      ts,
+      input.ticketId,
+    );
+    writeAudit('ticket', input.ticketId, input.actorId, 'priority_changed', input.priority);
+  }
+
+  if (input.category !== undefined) {
+    db.prepare('UPDATE tickets SET category = ?, updated_at = ? WHERE id = ?').run(
+      input.category || null,
+      ts,
+      input.ticketId,
+    );
+  }
+  if (input.subcategory !== undefined) {
+    db.prepare('UPDATE tickets SET subcategory = ?, updated_at = ? WHERE id = ?').run(
+      input.subcategory || null,
+      ts,
+      input.ticketId,
+    );
   }
 
   if (input.breachReason !== undefined) {
@@ -559,32 +796,120 @@ export function processInboundEmail(input: {
   body: string;
   inReplyTo?: string;
 }) {
-  const match = input.subject.match(/INC-\d+/i);
+  return processInboundParsed({
+    from: input.from,
+    fromName: input.fromName,
+    to: input.to,
+    subject: input.subject,
+    body: input.body,
+    attachments: [],
+    isAutoReply: false,
+    isBounce: false,
+  });
+}
+
+export function processInboundParsed(parsed: ParsedInboundEmail) {
+  if (parsed.isAutoReply || parsed.isBounce) {
+    logEvent('info', 'inbound_suppressed_autoreply', {
+      from: parsed.from,
+      bounce: !!parsed.isBounce,
+    });
+    incrementMetric('mail.autoreply_suppressed');
+    return null;
+  }
+
+  if (parsed.from && !isAllowedSenderDomain(parsed.from)) {
+    quarantineSpam({
+      fromAddr: parsed.from,
+      subject: parsed.subject,
+      reason: 'sender_domain_not_allowed',
+      rawPreview: parsed.body.slice(0, 500),
+    });
+    incrementMetric('mail.spam_quarantined');
+    return null;
+  }
+
+  incrementMetric('mail.inbound_processed');
+
+  const match = parsed.subject.match(ticketNumberPattern())?.[0]
+    ?? parsed.references?.join(' ').match(ticketNumberPattern())?.[0]
+    ?? null;
+
   if (match) {
-    const existing = getTicketByNumber(match[0]);
+    const existing = getTicketByNumber(match);
     if (existing) {
-      const requesterId = findOrCreateRequester(input.from, input.fromName);
-      return addMessage({
-        ticketId: existing.id as number,
+      const effectiveId = resolveEffectiveTicketId(existing.id as number);
+      const target = effectiveId === (existing.id as number) ? existing : getTicketById(effectiveId);
+      if (!target) return null;
+      const requesterId = findOrCreateRequester(parsed.from, parsed.fromName);
+      const ticket = addMessage({
+        ticketId: target.id as number,
         authorId: requesterId,
-        body: input.body,
+        body: parsed.body,
+        bodyHtml: parsed.html,
         type: 'public',
         actorId: requesterId,
       });
+      for (const att of parsed.attachments) {
+        saveAttachment(
+          target.id as number,
+          att.filename,
+          requesterId,
+          att.content,
+          att.contentType,
+        );
+      }
+      if (target.assignee_id) {
+        notifyUser({
+          userId: target.assignee_id as number,
+          title: `Reply on ${target.display_number}`,
+          body: parsed.subject,
+          ticketId: target.id as number,
+        });
+      }
+      return ticket;
     }
   }
 
-  const requesterId = findOrCreateRequester(input.from, input.fromName);
-  const supportTeam = input.to.includes('tech') ? 'Tech Support Team' : 'Customer Care';
-  return createTicket({
-    subject: input.subject,
-    description: input.body,
+  const requesterId = findOrCreateRequester(parsed.from, parsed.fromName);
+  const supportTeam = parsed.to.includes('tech') ? 'Tech Support Team' : 'Customer Care';
+  const ticket = createTicket({
+    subject: parsed.subject,
+    description: parsed.body,
+    bodyHtml: parsed.html,
     supportTeam,
     requesterId,
     source: 'email',
-    mailbox: input.to,
+    mailbox: parsed.to,
     groupName: supportTeam === 'Tech Support Team' ? PILOT_GROUP : supportTeam,
+    attachments: parsed.attachments.map((a) => ({
+      filename: a.filename,
+      data: a.content,
+      contentType: a.contentType,
+    })),
   });
+  return ticket;
+}
+
+/** Promote a quarantined inbound into a real ticket (ops release). */
+export function releaseSpamQuarantine(id: number, actorId: number) {
+  const row = getSpamQuarantineById(id);
+  if (!row) return null;
+  const requesterId = findOrCreateRequester(String(row.from_addr));
+  const ticket = createTicket({
+    subject: String(row.subject || 'Released from quarantine'),
+    description: String(row.raw_preview || '(No body captured in quarantine)'),
+    supportTeam: 'Tech Support Team',
+    requesterId,
+    source: 'email',
+    mailbox: PILOT_MAILBOX,
+    groupName: PILOT_GROUP,
+    actorId,
+  });
+  if (!ticket) return null;
+  deleteSpamQuarantine(id);
+  writeAudit('spam', id, actorId, 'released', String(ticket.display_number));
+  return ticket;
 }
 
 export function runAutoCloseJob(actorId: number | null = null) {
@@ -667,6 +992,18 @@ export function getSupervisorReport(scope?: { groupName?: string | null }) {
       )
       .get(...groupParam) as { c: number }
   ).c;
+  const dueToday = listTickets({
+    groupName: scope?.groupName ?? undefined,
+  }).filter((t) =>
+    ticketDueToday({
+      statusCategory: t.status_category as string,
+      slaClock: t.sla_clock as string,
+      respondBy: t.respond_by as string | null,
+      resolveBy: t.resolve_by as string | null,
+      firstResponseAt: t.first_response_at as string | null,
+      resolvedAt: t.resolved_at as string | null,
+    }),
+  ).length;
   const byTeam = db
     .prepare(
       `SELECT group_name, COUNT(*) as count FROM tickets t WHERE t.deleted = 0${groupClause} GROUP BY group_name ORDER BY count DESC`,
@@ -688,11 +1025,18 @@ export function getSupervisorReport(scope?: { groupName?: string | null }) {
     )
     .all(...groupParam);
 
-  return { createdToday, createdWeek, createdMonth, open, overdue, breached, slaMet, byTeam, byStatus, byAgent };
+  return { createdToday, createdWeek, createdMonth, open, overdue, dueToday, breached, slaMet, byTeam, byStatus, byAgent };
 }
 
 export function getOutbox() {
+  // UI mail simulator — capped. Tests must use getOutboxForTicket / SQL counts.
   return getDb()
     .prepare('SELECT * FROM mail_outbox ORDER BY sent_at DESC LIMIT 100')
     .all() as Record<string, unknown>[];
+}
+
+export function getOutboxForTicket(ticketId: number) {
+  return getDb()
+    .prepare('SELECT * FROM mail_outbox WHERE ticket_id = ? ORDER BY sent_at DESC')
+    .all(ticketId) as Record<string, unknown>[];
 }

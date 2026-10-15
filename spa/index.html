@@ -112,7 +112,7 @@
       if (!u) return false;
       state.session = u.id;
       save(state);
-      if (u.role === 'requester') go('/portal'); else go(u.role === 'supervisor' ? '/supervisor' : '/agent');
+      if (u.role === 'requester') go('/portal'); else go('/agent');
       return true;
     }
 
@@ -125,18 +125,19 @@
     }
     function guardRequester() {
       const u = user();
-      if (!u || u.role !== 'requester') { go(u?.role === 'supervisor' ? '/supervisor' : '/agent'); return false; }
+      if (!u || u.role !== 'requester') { go('/agent'); return false; }
       return true;
     }
 
     function createTicket(data) {
       const num = state.counter++;
       const now = new Date().toISOString();
+      const requesterId = data.requesterId != null ? data.requesterId : user().id;
       const t = {
         id: state.tickets.length + 1, number: num, display: 'INC-' + num,
-        subject: data.subject, description: data.description, team: data.team, group: 'Tech Support Team',
-        requesterId: user().id, assigneeId: 2, status: 'Open', source: 'portal',
-        messages: [{ id: Date.now(), authorId: user().id, body: data.description, type: 'public', at: now }],
+        subject: data.subject, description: data.description, team: data.supportTeam || data.team, group: data.group || 'Tech Support Team',
+        requesterId, assigneeId: 2, status: 'Open', source: data.source || 'portal',
+        messages: [{ id: Date.now(), authorId: requesterId, body: data.description, type: 'public', at: now }],
         outbox: [], createdAt: now, updatedAt: now, respondBy: now, resolveBy: now,
         firstResponseAt: null, resolutionNote: '', slaBreached: false,
       };
@@ -180,13 +181,14 @@
     }
 
     function shell(title, nav, body, kind) {
+      const demote = '<div class="banner banner-warn">Static Pages demo (localStorage) — product source of truth is the Next.js app: <code>npm run start:demo</code></div>';
       return '<header class="topbar topbar-' + kind + '"><div class="brand">' + title + '</div><nav class="nav">' + nav +
-        '</nav><button class="btn btn-ghost btn-sm" onclick="logout()">Sign out</button></header><main class="main">' + body + '</main>';
+        '</nav><button class="btn btn-ghost btn-sm" onclick="logout()">Sign out</button></header><main class="main">' + demote + body + '</main>';
     }
 
     function renderLogin() {
       const opts = Object.keys(USERS).map(e => '<option value="' + e + '">' + USERS[e].name + ' — ' + USERS[e].role + '</option>').join('');
-      document.getElementById('app').innerHTML = '<div class="main hero"><div><h1>Moglix IntelliDesk</h1><p>Employee portal and agent desk MVP prototype. Runs in your browser on GitHub Pages.</p></div><div class="card"><h2>Sign in</h2><label>Account</label><select id="email">' + opts + '</select><button class="btn" style="width:100%" onclick="login(document.getElementById(\'email\').value)">Continue</button></div></div><p class="footer">Browser demo for GitHub Pages · Full SQLite prototype: clone repo and run <code>npm run start:demo</code></p>';
+      document.getElementById('app').innerHTML = '<div class="main hero"><div><h1>Moglix IntelliDesk</h1><p>Lightweight browser demo for GitHub Pages. For QA and PRD sign-off, run the full Next.js + SQLite prototype locally.</p></div><div class="card"><h2>Sign in</h2><label>Account</label><select id="email">' + opts + '</select><button class="btn" style="width:100%" onclick="login(document.getElementById(\'email\').value)">Continue</button></div></div><p class="footer">Demoted static SPA · Full product: clone repo and run <code>npm run start:demo</code> on port 3020</p>';
     }
 
     function renderPortal() {
@@ -236,7 +238,7 @@
       const u = user();
       let list = state.tickets;
       if (u.role === 'agent') list = list.filter(t => t.group === u.group);
-      const nav = '<a href="#/agent" class="active">Queue</a><a href="#/supervisor">Reports</a><a href="#/mail">Mail</a>';
+      const nav = '<a href="#/agent" class="active">Queue</a><a href="#/mail">Inbound test</a><a href="#/agent/new">+ New</a>';
       const rows = list.map(t => '<tr><td><a href="#/agent/tickets/' + t.id + '">' + t.display + '</a></td><td>' + esc(t.subject) + '</td><td>' + uname(t.requesterId) + '</td><td><span class="pill">' + t.status + '</span></td><td>' + (t.assigneeId ? uname(t.assigneeId) : '—') + '</td></tr>').join('');
       document.getElementById('app').innerHTML = shell('Agent Desk', nav, '<h1>Agent queue</h1><div class="card" style="padding:0"><table><thead><tr><th>Ticket</th><th>Subject</th><th>Requester</th><th>Status</th><th>Assignee</th></tr></thead><tbody>' + rows + '</tbody></table></div>', 'desk');
     }
@@ -245,7 +247,7 @@
       if (!guardStaff()) return;
       const t = ticket(+id);
       if (!t) return go('/agent');
-      const nav = '<a href="#/agent">Queue</a><a href="#/supervisor">Reports</a><a href="#/mail">Mail</a>';
+      const nav = '<a href="#/agent">Queue</a><a href="#/mail">Inbound test</a><a href="#/agent/new">+ New</a>';
       const msgs = t.messages.map(m => '<div class="msg ' + (m.type === 'note' ? 'note' : '') + '"><div class="meta">' + uname(m.authorId) + ' · ' + m.type + '</div><div>' + esc(m.body) + '</div></div>').join('');
       const side = '<div class="card"><label>Status</label><select id="status"><option>Open</option><option>Pending</option><option>Resolved</option><option>Closed</option></select><label>Resolution note</label><textarea id="resnote" rows="3">' + esc(t.resolutionNote || '') + '</textarea><button class="btn" style="width:100%;margin-top:8px" onclick="updateTicket(' + t.id + ',{status:document.getElementById(\'status\').value,resolutionNote:document.getElementById(\'resnote\').value});render()">Save</button></div>';
       document.getElementById('app').innerHTML = shell('Agent Desk', nav, '<h1>' + esc(t.subject) + '</h1><div class="workbench"><div class="card"><div class="thread">' + msgs + '</div><div class="composer-tabs"><button class="composer-tab active" id="tab-pub" onclick="setComposer(\'public\')">Public reply</button><button class="composer-tab" id="tab-note" onclick="setComposer(\'note\')">Internal note</button></div><textarea id="agentmsg" rows="3"></textarea><button class="btn" onclick="agentSend(' + t.id + ')">Send</button></div>' + side + '</div>', 'desk');
@@ -261,7 +263,7 @@
       const u = user();
       let list = state.tickets;
       if (u.role === 'supervisor') list = list.filter(t => t.group === u.group);
-      const nav = '<a href="#/agent">Queue</a><a href="#/supervisor" class="active">Reports</a><a href="#/mail">Mail</a>';
+      const nav = '<a href="#/agent">Queue</a><a href="#/mail">Inbound test</a><a href="#/agent/new">+ New</a>';
       const open = list.filter(t => !['Resolved', 'Closed'].includes(t.status)).length;
       const body = '<h1>Supervisor report</h1><div class="stats"><div class="stat"><strong>' + open + '</strong>Open</div><div class="stat"><strong>' + list.length + '</strong>Total</div><div class="stat"><strong>' + list.filter(t => t.slaBreached).length + '</strong>SLA breached</div></div>';
       document.getElementById('app').innerHTML = shell('Agent Desk', nav, body, 'desk');
@@ -269,10 +271,29 @@
 
     function renderMail() {
       if (!guardStaff()) return;
-      const nav = '<a href="#/agent">Queue</a><a href="#/supervisor">Reports</a><a href="#/mail" class="active">Mail</a>';
+      const nav = '<a href="#/agent">Queue</a><a href="#/mail" class="active">Inbound test</a><a href="#/agent/new">+ New</a>';
       const out = (state.outbox || []).map(o => '<div class="msg"><div class="meta">' + o.event + ' → ' + o.to + '</div><strong>' + esc(o.subject) + '</strong></div>').join('') || '<p>No outbound mail yet.</p>';
-      const body = '<h1>Mail simulator</h1><div class="grid-2"><div class="card"><label>Subject (use [INC-…] to thread)</label><input id="msub" value="Re: [INC-2176596] Follow up" /><label>Body</label><textarea id="mbody" rows="4">Still having issues.</textarea><button class="btn" onclick="processMail()">Process inbound</button></div><div class="card"><h3>Outbox</h3>' + out + '</div></div>';
+      const body = '<h1>Inbound email test</h1><p class="muted">QA lab — use + New for phone/walk-up tickets.</p><div class="grid-2"><div class="card"><label>Subject (use [INC-…] to thread)</label><input id="msub" value="Re: [INC-2176596] Follow up" /><label>Body</label><textarea id="mbody" rows="4">Still having issues.</textarea><button class="btn" onclick="processMail()">Process inbound</button></div><div class="card"><h3>Outbox</h3>' + out + '</div></div>';
       document.getElementById('app').innerHTML = shell('Agent Desk', nav, body, 'desk');
+    }
+
+    function renderAgentNew() {
+      if (!guardStaff()) return;
+      const nav = '<a href="#/agent">Queue</a><a href="#/mail">Inbound test</a><a href="#/agent/new" class="active">+ New</a>';
+      const reqs = state.users.filter(u => u.role === 'requester');
+      const opts = reqs.map(r => '<option value="' + r.id + '">' + esc(r.name) + ' (' + esc(r.email) + ')</option>').join('');
+      const body = '<h1>New ticket</h1><p class="muted">Same intake as the portal — for phone / walk-up.</p><div class="card"><label>Requester</label><select id="nreq">' + opts + '</select><label>Source</label><select id="nsrc"><option value="phone">Phone</option><option value="portal">Walk-up</option><option value="other">Other</option></select><label>Subject</label><input id="nsub" /><label>Description</label><textarea id="ndesc" rows="4"></textarea><button class="btn" onclick="submitStaffTicket()">Create ticket</button></div>';
+      document.getElementById('app').innerHTML = shell('Agent Desk', nav, body, 'desk');
+    }
+
+    function submitStaffTicket() {
+      const requesterId = +document.getElementById('nreq').value;
+      const subject = document.getElementById('nsub').value.trim();
+      const description = document.getElementById('ndesc').value.trim();
+      const source = document.getElementById('nsrc').value;
+      if (!requesterId || !subject || !description) { alert('Requester, subject and description required'); return; }
+      const t = createTicket({ subject, description, requesterId, source, supportTeam: 'Tech Support Team', group: user().group || 'Tech Support Team' });
+      go('/agent/tickets/' + t.id);
     }
 
     function processMail() {
@@ -298,18 +319,20 @@
         return renderPortal();
       }
       if (parts[0] === 'agent') {
+        if (parts[1] === 'new') return renderAgentNew();
         if (parts[1] === 'tickets' && parts[2]) return renderAgentTicket(parts[2]);
         return renderAgent();
       }
-      if (parts[0] === 'supervisor') return renderSupervisor();
+      if (parts[0] === 'supervisor') { go('/agent'); return; }
       if (parts[0] === 'mail') return renderMail();
       const u = user();
-      go(u.role === 'requester' ? '/portal' : u.role === 'supervisor' ? '/supervisor' : '/agent');
+      go(u.role === 'requester' ? '/portal' : '/agent');
     }
 
     window.login = login; window.logout = logout; window.render = render;
     window.addMessage = addMessage; window.updateTicket = updateTicket; window.submitIncident = submitIncident;
     window.setComposer = setComposer; window.agentSend = agentSend; window.processMail = processMail;
+    window.submitStaffTicket = submitStaffTicket;
     window.addEventListener('hashchange', render);
     render();
   </script>

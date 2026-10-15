@@ -13,22 +13,35 @@
     "start": "next start -p 3020",
     "start:demo": "npm run build && next start -p 3020",
     "seed": "tsx scripts/seed.ts",
-    "test": "npm run test:e2e && npm run test:roles && npm run test:smoke",
+    "test": "npm run test:e2e && npm run test:oss && npm run test:roles && npm run test:gaps && npm run test:smoke",
+    "test:oss": "tsx scripts/oss-modules-test.ts",
     "test:e2e": "tsx scripts/e2e-test.ts",
+    "test:gaps": "tsx scripts/mvp-gaps-test.ts",
     "test:http": "npm run build && tsx scripts/e2e-http.ts",
     "test:roles": "tsx scripts/role-separation-test.ts",
     "test:smoke": "tsx scripts/smoke-test.ts",
     "audit:check": "npm audit --audit-level=high"
   },
   "dependencies": {
+    "date-fns": "^4.4.0",
+    "date-fns-tz": "^3.2.0",
+    "fuse.js": "^7.5.0",
+    "handlebars": "^4.7.9",
+    "mailparser": "^3.9.20",
     "next": "16.3.4",
+    "nodemailer": "^9.1.1",
     "react": "19.1.2",
-    "react-dom": "19.1.2"
+    "react-dom": "19.1.2",
+    "sanitize-html": "^2.17.7",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@types/mailparser": "^3.4.6",
     "@types/node": "^22.15.30",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.5",
+    "@types/sanitize-html": "^2.16.1",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3"
   },

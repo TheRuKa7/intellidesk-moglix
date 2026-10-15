@@ -40,6 +40,7 @@ export const ALL_SUPPORT_TEAMS = [
   'IT Support Team',
 ] as const;
 
+/** All 25 agent statuses — aligned with workbook R2_Statuses_and_Picklists */
 export const STATUSES: { name: string; category: string; slaClock: 'run' | 'pause' | 'stop' }[] = [
   { name: 'Open', category: 'in_progress', slaClock: 'run' },
   { name: 'Re-Open', category: 'in_progress', slaClock: 'run' },
@@ -47,18 +48,66 @@ export const STATUSES: { name: string; category: string; slaClock: 'run' | 'paus
   { name: 'Manager Approval Awaited', category: 'waiting_approval', slaClock: 'pause' },
   { name: 'BU Approval Awaited', category: 'waiting_approval', slaClock: 'pause' },
   { name: 'Finance Approval Awaited', category: 'waiting_approval', slaClock: 'pause' },
-  { name: 'Treasury Approval Awaited', category: 'waiting_approval', slaClock: 'pause' },
+  { name: 'Treasury Action Awaited', category: 'waiting_approval', slaClock: 'pause' },
   { name: 'Supply Approval Awaited', category: 'waiting_approval', slaClock: 'pause' },
+  { name: 'Approval Awaited', category: 'waiting_approval', slaClock: 'pause' },
+  { name: 'Legal Action Awaited', category: 'waiting_approval', slaClock: 'pause' },
   { name: 'Waiting for Tech', category: 'waiting_team', slaClock: 'pause' },
   { name: 'Waiting for catalog', category: 'waiting_team', slaClock: 'pause' },
+  { name: 'Waiting for category', category: 'waiting_team', slaClock: 'pause' },
   { name: 'Pushed to SCM', category: 'waiting_team', slaClock: 'pause' },
   { name: 'Plant Creation Action', category: 'waiting_team', slaClock: 'pause' },
   { name: 'CL Action Awaited', category: 'waiting_team', slaClock: 'pause' },
+  { name: 'Documents Uploaded', category: 'waiting_team', slaClock: 'pause' },
+  { name: 'Plant Created', category: 'waiting_team', slaClock: 'pause' },
+  { name: 'AutoMap', category: 'waiting_team', slaClock: 'pause' },
+  { name: 'AutoMap False', category: 'waiting_team', slaClock: 'pause' },
+  { name: 'Invalid UTR', category: 'waiting_team', slaClock: 'pause' },
   { name: 'On Hold', category: 'parked', slaClock: 'pause' },
   { name: 'Resolved', category: 'done', slaClock: 'stop' },
   { name: 'Interim Resolve', category: 'done', slaClock: 'stop' },
   { name: 'Closed', category: 'done', slaClock: 'stop' },
 ];
+
+/** Requester-facing labels from workbook R2 (agents see internal names) */
+export const REQUESTER_STATUS_LABELS: Record<string, string> = {
+  Open: 'Being Processed',
+  Pending: 'Awaiting your Reply',
+  Resolved: 'This ticket has been Resolved',
+  Closed: 'This ticket has been Closed',
+  'On Hold': 'On Hold',
+  'Documents Uploaded': 'Document Uploaded',
+  'Plant Created': 'Plant Created',
+  'BU Approval Awaited': 'BU Approval Awaited',
+  'Legal Action Awaited': 'Legal Action Awaited',
+  'Finance Approval Awaited': 'Finance Approval Awaited',
+  'Plant Creation Action': 'Plant Creation Action',
+  'CL Action Awaited': 'CL Action Awaited',
+  'Re-Open': 'Re-Open',
+  'Interim Resolve': 'Interim Resolve',
+  'Manager Approval Awaited': 'Manager Approval Awaited',
+  'Waiting for catalog': 'Waiting for catalog',
+  'Waiting for Tech': 'Waiting for Tech',
+  'Waiting for category': 'Waiting for category',
+  'Treasury Action Awaited': 'Treasury Action Awaited',
+  'Supply Approval Awaited': 'Supply Approval Awaited',
+  'Approval Awaited': 'Approval Awaited',
+  'Pushed to SCM': 'Pushed to SCM',
+  AutoMap: 'AutoMap',
+  'AutoMap False': 'AutoMap False',
+  'Invalid UTR': 'Invalid UTR',
+};
+
+export const AGENT_SAVED_VIEWS = [
+  { id: 'open', label: 'Open tickets' },
+  { id: 'mine', label: 'Assigned to me' },
+  { id: 'unassigned', label: 'Unassigned' },
+  { id: 'overdue', label: 'Overdue' },
+  { id: 'due_today', label: 'Due today' },
+  { id: 'all', label: 'All tickets' },
+] as const;
+
+export const PRIORITIES = ['Low', 'Medium', 'High', 'Urgent'] as const;
 
 export const COMMERCE_FIELDS = [
   'support_team',

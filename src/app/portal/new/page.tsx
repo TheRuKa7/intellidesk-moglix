@@ -1,7 +1,11 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { FlashBanner } from '@/components/FlashBanner';
 import { PageHeader } from '@/components/ui';
+import { SubmitButton } from '@/components/SubmitButton';
+import { TicketIntakeFields } from '@/components/TicketIntakeFields';
+import { collectFormAttachments, maxAttachmentBytes } from '@/lib/attachment-limits';
 import { requireRequesterOrRedirect } from '@/lib/auth';
-import { PORTAL_SUPPORT_TEAMS } from '@/lib/constants';
 import { createTicket, isPortalVisibleTeam } from '@/lib/tickets';
 
 async function submitIncident(formData: FormData) {
@@ -11,20 +15,29 @@ async function submitIncident(formData: FormData) {
   if (!isPortalVisibleTeam(supportTeam)) {
     redirect('/portal/new?error=team');
   }
-  const attachment = formData.get('attachment') as File | null;
-  const attachmentNames: string[] = [];
-  if (attachment && attachment.size > 0) {
-    attachmentNames.push(attachment.name);
+  const subject = String(formData.get('subject') ?? '').trim();
+  const description = String(formData.get('description') ?? '').trim();
+  if (!subject || !description) {
+    redirect('/portal/new?error=fields');
+  }
+  let attachments: { filename: string; data: Buffer; contentType?: string }[] = [];
+  try {
+    attachments = await collectFormAttachments(formData);
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith('ATTACHMENT_TOO_LARGE:')) {
+      redirect(`/portal/new?error=attach&max=${e.message.split(':')[1]}`);
+    }
+    throw e;
   }
   const ticket = createTicket({
-    subject: String(formData.get('subject')),
-    description: String(formData.get('description')),
-    supportTeam: String(formData.get('support_team')),
+    subject,
+    description,
+    supportTeam,
     requesterId: user.id,
     source: 'portal',
     cc: String(formData.get('cc') || '') || undefined,
     otherRemarks: String(formData.get('other_remarks') || '') || undefined,
-    attachmentNames,
+    attachments,
     actorId: user.id,
   });
   redirect(`/portal/tickets/${ticket?.id}?created=1`);
@@ -33,65 +46,66 @@ async function submitIncident(formData: FormData) {
 export default async function NewIncidentPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; max?: string }>;
 }) {
   const user = await requireRequesterOrRedirect();
   const sp = await searchParams;
+  const maxMb = Math.round(maxAttachmentBytes() / (1024 * 1024));
 
   return (
-    <div style={{ maxWidth: 720 }}>
+    <div>
       {sp.error === 'team' ? (
-        <div className="banner banner-warn" style={{ marginBottom: 16 }}>
-          Please select a valid support team from the list.
-        </div>
+        <FlashBanner variant="warn">Please select a valid support team from the list.</FlashBanner>
       ) : null}
+      {sp.error === 'fields' ? (
+        <FlashBanner variant="warn">Subject and description are required.</FlashBanner>
+      ) : null}
+      {sp.error === 'attach' ? (
+        <FlashBanner variant="warn">
+          Attachment exceeds the {sp.max ?? maxMb} MB security limit.
+        </FlashBanner>
+      ) : null}
+      <nav className="breadcrumb" aria-label="Breadcrumb">
+        <Link href="/portal">Home</Link>
+        <span className="breadcrumb-sep">›</span>
+        <span>Submit a ticket</span>
+      </nav>
       <PageHeader
-        title="Report an incident"
-        description="Describe your issue. You'll receive a ticket number and confirmation email within 60 seconds."
-        backHref="/portal"
-        backLabel="Portal home"
+        title="Submit a ticket"
+        description="You'll receive a ticket number and confirmation email within 60 seconds."
       />
-      <div className="card">
-        <form action={submitIncident} encType="multipart/form-data">
-          <div className="form-section">
-            <h3 className="form-section-title">Who &amp; where</h3>
-            <label>Requester</label>
-            <input value={`${user.name} (${user.email})`} readOnly disabled />
-            <label htmlFor="support_team">Support team</label>
-            <select id="support_team" name="support_team" required defaultValue="Tech Support Team">
-              {PORTAL_SUPPORT_TEAMS.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-            <label htmlFor="cc">Add CC (optional)</label>
-            <input id="cc" name="cc" type="email" placeholder="colleague@moglix.com" />
-          </div>
-          <div className="form-section">
-            <h3 className="form-section-title">Issue details</h3>
-            <label htmlFor="subject">Subject</label>
-            <input id="subject" name="subject" required placeholder="Brief summary of the issue" />
-            <label htmlFor="description">Description</label>
-            <textarea
-              id="description"
-              name="description"
-              required
-              placeholder="What happened? Include steps to reproduce, error messages, and impact."
-            />
-            <label htmlFor="other_remarks">Other remarks (optional)</label>
-            <textarea id="other_remarks" name="other_remarks" placeholder="Any extra context for the team" rows={3} />
-          </div>
-          <div className="form-section">
-            <h3 className="form-section-title">Attachments</h3>
-            <label htmlFor="attachment">Attach files (optional)</label>
-            <input id="attachment" name="attachment" type="file" />
-            <p className="field-hint">Screenshots or logs help agents resolve faster. Stored securely on the ticket.</p>
-          </div>
-          <button className="btn" type="submit">
-            Submit incident
-          </button>
-        </form>
+      <div className="grid grid-2 portal-form-layout">
+        <div className="card card-elevated">
+          <form action={submitIncident} encType="multipart/form-data" className="portal-form">
+            <div className="form-row">
+              <label>Requester *</label>
+              <div>
+                <input value={`${user.name} (${user.email})`} readOnly disabled />
+                <Link className="inline-link" href="#cc">
+                  Add cc
+                </Link>
+              </div>
+            </div>
+            <TicketIntakeFields maxAttachmentMb={maxMb} />
+            <div className="form-actions">
+              <SubmitButton className="btn portal-submit" pendingLabel="Submitting…">
+                Submit
+              </SubmitButton>
+              <Link className="btn btn-ghost portal-cancel" href="/portal">
+                Cancel
+              </Link>
+            </div>
+          </form>
+        </div>
+        <aside className="card portal-aside">
+          <h3 className="card-title">Tips for a faster resolution</h3>
+          <ul className="portal-tips">
+            <li>Pick the support team that owns the issue.</li>
+            <li>Include impact and steps to reproduce in the description.</li>
+            <li>CC a colleague if they need visibility on updates.</li>
+            <li>Attach screenshots or error logs when available.</li>
+          </ul>
+        </aside>
       </div>
     </div>
   );

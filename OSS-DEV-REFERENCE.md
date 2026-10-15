@@ -48,14 +48,43 @@
 
 ---
 
-## Current MVP prototype (not OSS fork)
+## Current MVP prototype — OSS modules in use
 
-| Project | GitHub | License | General use | Notes |
-|---------|--------|---------|-------------|-------|
-| **Next.js** | https://github.com/vercel/next.js | MIT | ✅ Permissive | UI framework (`next@16.3.4`) |
-| **React** | https://github.com/facebook/react | MIT | ✅ Permissive | UI (`react@19.1.2`) |
+The Windows-native prototype embeds **MIT/permissive npm libraries** (not AGPL desk forks) for missing MVP modules:
 
-Runs on **Windows natively** (no Docker) using Node built-in SQLite — for pilot UX validation only. Production path remains **Zammad fork**.
+| Module (workbook) | OSS library | GitHub | License | File(s) |
+| --- | --- | --- | --- | --- |
+| MFI-025 MIME parsing | **mailparser** | https://github.com/nodemailer/mailparser | MIT | `src/lib/email-parser.ts` |
+| MFI-004/027 Mail transport | **nodemailer** | https://github.com/nodemailer/nodemailer | MIT | `src/lib/mail-transport.ts` |
+| MFI-028/031 Notifications | **handlebars** | https://github.com/handlebars-lang/handlebars.js | MIT | `src/lib/notifications.ts` |
+| MFI-007 Search | **fuse.js** | https://github.com/krisk/Fuse | MIT | `src/lib/search.ts` |
+| MFI-037 Business calendars | **date-fns** + **date-fns-tz** | https://github.com/date-fns/date-fns | MIT | `src/lib/sla.ts`, `src/lib/holidays.ts` |
+| MFI-011 Attachments | Local disk (MinIO pattern) | — | — | `src/lib/attachments.ts`, `/api/attachments/[id]` |
+| HTML sanitization | **sanitize-html** | https://github.com/apostrophecms/sanitize-html | MIT | `src/lib/email-parser.ts` |
+| Form validation (future) | **zod** | https://github.com/colinhacks/zod | MIT | reserved |
+
+**Production satellites** (run as services, not embedded):
+
+| Module | OSS | Role |
+| --- | --- | --- |
+| Full-text search | **Meilisearch** (MIT) | Replace Fuse.js at scale |
+| Object storage | **MinIO** (AGPL) | Replace local `data/attachment-files/` |
+| Desk core | **Zammad** (AGPL) | Replace custom Next.js app |
+| Reporting | **Metabase** (AGPL) | Supervisor BI beyond CSV |
+| Automations | **n8n** (SUL) | Internal workflows only |
+
+Run `npm run test:oss` to verify library integrations.
+
+---
+
+## Current MVP prototype (framework only)
+
+| Project | GitHub | License | Notes |
+|---------|--------|---------|-------|
+| **Next.js** | https://github.com/vercel/next.js | MIT | UI framework (`next@16.3.4`) |
+| **React** | https://github.com/facebook/react | MIT | UI (`react@19.1.2`) |
+
+Runs on **Windows natively** (no Docker) using Node built-in SQLite — for pilot UX validation. Production path remains **Zammad fork** + Meilisearch + MinIO.
 
 ---
 
@@ -78,6 +107,18 @@ Runs on **Windows natively** (no Docker) using Node built-in SQLite — for pilo
 3. **Automations:** **n8n** for internal workflows only unless legal approves embed license.
 4. **Reporting:** Metabase (AGPL) or export to existing BI.
 5. **Search / files:** Meilisearch (MIT) + MinIO (AGPL) as satellites.
+
+---
+
+## UI/UX reference (Freshservice screenshots)
+
+Live Mogli Labs screenshots and pattern catalog:  
+`../moglilabs.freshservice.com/UI-UX-REFERENCE.md`
+
+## MVP cross-check (workbook)
+
+All 52 **In MVP = YES** items from `moglix_freshservice_index.xlsx` mapped to prototype coverage:  
+`MVP-CROSSCHECK.md`
 
 ---
 

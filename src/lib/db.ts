@@ -124,8 +124,105 @@ function migrate(database: DatabaseSync) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       ticket_id INTEGER NOT NULL REFERENCES tickets(id),
       filename TEXT NOT NULL,
+      storage_key TEXT,
+      size_bytes INTEGER,
+      content_type TEXT,
       uploaded_by INTEGER REFERENCES users(id),
       created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS holidays (
+      date TEXT PRIMARY KEY,
+      name TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS platform_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      level TEXT NOT NULL,
+      event TEXT NOT NULL,
+      detail TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS metrics (
+      name TEXT PRIMARY KEY,
+      value INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS privileges (
+      key TEXT PRIMARY KEY,
+      description TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS roles (
+      name TEXT PRIMARY KEY,
+      level TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS role_privileges (
+      role_name TEXT NOT NULL,
+      privilege_key TEXT NOT NULL,
+      PRIMARY KEY (role_name, privilege_key)
+    );
+
+    CREATE TABLE IF NOT EXISTS departments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      approver_email TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS mailboxes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      address TEXT NOT NULL UNIQUE,
+      forward_to TEXT,
+      group_name TEXT,
+      is_primary INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      token TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      revoked INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      ticket_id INTEGER REFERENCES tickets(id),
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      read INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS ticket_watchers (
+      ticket_id INTEGER NOT NULL REFERENCES tickets(id),
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (ticket_id, user_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS spam_quarantine (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      from_addr TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      raw_preview TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS sla_policies (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      group_name TEXT,
+      respond_hours REAL NOT NULL,
+      resolve_hours REAL NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 100
     );
   `);
 
@@ -136,6 +233,24 @@ function migrate(database: DatabaseSync) {
   }
   if (!names.has('breach_reason')) {
     database.exec('ALTER TABLE tickets ADD COLUMN breach_reason TEXT');
+  }
+  if (!names.has('category')) {
+    database.exec('ALTER TABLE tickets ADD COLUMN category TEXT');
+  }
+  if (!names.has('subcategory')) {
+    database.exec('ALTER TABLE tickets ADD COLUMN subcategory TEXT');
+  }
+
+  const attachCols = database.prepare('PRAGMA table_info(attachments)').all() as { name: string }[];
+  const attachNames = new Set(attachCols.map((c) => c.name));
+  if (!attachNames.has('storage_key')) {
+    database.exec('ALTER TABLE attachments ADD COLUMN storage_key TEXT');
+  }
+  if (!attachNames.has('size_bytes')) {
+    database.exec('ALTER TABLE attachments ADD COLUMN size_bytes INTEGER');
+  }
+  if (!attachNames.has('content_type')) {
+    database.exec('ALTER TABLE attachments ADD COLUMN content_type TEXT');
   }
 }
 

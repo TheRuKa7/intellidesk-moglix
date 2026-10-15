@@ -1,0 +1,471 @@
+﻿[
+  {
+    "id": "MFI-001",
+    "phase": "Phase 0 - Foundations",
+    "module": "M0 Foundations",
+    "submodule": "Platform",
+    "priority": "P0 Blocker",
+    "feature": "Core data model and schema",
+    "what": "The relational schema every other requirement writes against: tickets, conversations, users, agents, groups, departments, fields, field values, SLA state, attachments, and the scoping columns that carry tenancy."
+  },
+  {
+    "id": "MFI-002",
+    "phase": "Phase 0 - Foundations",
+    "module": "M0 Foundations",
+    "submodule": "Platform",
+    "priority": "P0 Blocker",
+    "feature": "Authorisation framework",
+    "what": "A single policy layer that answers \"can this person do this to this record\", used by every endpoint rather than reimplemented per feature."
+  },
+  {
+    "id": "MFI-003",
+    "phase": "Phase 0 - Foundations",
+    "module": "M0 Foundations",
+    "submodule": "Platform",
+    "priority": "P0 Blocker",
+    "feature": "Background jobs and scheduling",
+    "what": "Durable background execution: queued work, retries with backoff, scheduled runs, and timers that survive a restart."
+  },
+  {
+    "id": "MFI-004",
+    "phase": "Phase 0 - Foundations",
+    "module": "M0 Foundations",
+    "submodule": "Platform",
+    "priority": "P0 Blocker",
+    "feature": "Mail transport infrastructure",
+    "what": "The plumbing that receives and sends mail, underneath the parsing and routing features: connections, authentication, queueing, retries, bounce handling and delivery tracking."
+  },
+  {
+    "id": "MFI-005",
+    "phase": "Phase 0 - Foundations",
+    "module": "M0 Foundations",
+    "submodule": "Platform",
+    "priority": "P0 Blocker",
+    "feature": "Notification delivery service",
+    "what": "One service that renders a template, resolves recipients, applies preferences and delivers - shared by every notification in the product."
+  },
+  {
+    "id": "MFI-006",
+    "phase": "Phase 0 - Foundations",
+    "module": "M0 Foundations",
+    "submodule": "Platform",
+    "priority": "P0 Blocker",
+    "feature": "Environments and delivery pipeline",
+    "what": "Development, staging and production environments, an automated build and deploy path, and reviewed database migrations."
+  },
+  {
+    "id": "MFI-007",
+    "phase": "Phase 0 - Foundations",
+    "module": "M0 Foundations",
+    "submodule": "Platform",
+    "priority": "P1 High",
+    "feature": "Search infrastructure",
+    "what": "The index and query layer behind global search, ticket filtering and the portal search."
+  },
+  {
+    "id": "MFI-008",
+    "phase": "Phase 0 - Foundations",
+    "module": "M0 Foundations",
+    "submodule": "Platform",
+    "priority": "P1 High",
+    "feature": "Observability and error tracking",
+    "what": "Logs, metrics, traces, error tracking and alerting for the platform itself."
+  },
+  {
+    "id": "MFI-009",
+    "phase": "Phase 0 - Foundations",
+    "module": "M0 Foundations",
+    "submodule": "Platform",
+    "priority": "P1 High",
+    "feature": "API surface and conventions",
+    "what": "A consistent internal API - pagination, filtering, expansion, error shape, versioning - that the web client and every integration use."
+  },
+  {
+    "id": "MFI-010",
+    "phase": "Phase 0 - Foundations",
+    "module": "M1 Users, Roles & Access",
+    "submodule": "Admin tooling",
+    "priority": "P0 Blocker",
+    "feature": "Audit log",
+    "what": "An append-only audit trail for every configuration change and every impersonated action."
+  },
+  {
+    "id": "MFI-011",
+    "phase": "Phase 0 - Foundations",
+    "module": "M2 Channels & Email",
+    "submodule": "Attachments",
+    "priority": "P0 Blocker",
+    "feature": "Attachment storage",
+    "what": "Store attachments in object storage with signed, expiring access."
+  },
+  {
+    "id": "MFI-012",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M1 Users, Roles & Access",
+    "submodule": "Authentication",
+    "priority": "P0 Blocker",
+    "feature": "Single sign-on + Form Based login",
+    "what": "Microsoft sign-in for employees and agents. Provider decided: Microsoft."
+  },
+  {
+    "id": "MFI-013",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M1 Users, Roles & Access",
+    "submodule": "Session",
+    "priority": "P0 Blocker",
+    "feature": "Session and token management",
+    "what": "Issue, refresh and revoke sessions; support forced logout."
+  },
+  {
+    "id": "MFI-014",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M1 Users, Roles & Access",
+    "submodule": "Roles & permissions",
+    "priority": "P0 Blocker",
+    "feature": "Role model",
+    "what": "A named-role model with 23 seeded roles covering agent, supervisor, specialist and admin levels."
+  },
+  {
+    "id": "MFI-015",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M1 Users, Roles & Access",
+    "submodule": "Roles & permissions",
+    "priority": "P0 Blocker",
+    "feature": "Ticket visibility scope",
+    "what": "Per-role ticket visibility: global, group-restricted, or own tickets only."
+  },
+  {
+    "id": "MFI-016",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M1 Users, Roles & Access",
+    "submodule": "Agent management",
+    "priority": "P0 Blocker",
+    "feature": "Agent directory",
+    "what": "An agent directory with profile, roles, group memberships and availability."
+  },
+  {
+    "id": "MFI-017",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M1 Users, Roles & Access",
+    "submodule": "Groups & routing",
+    "priority": "P0 Blocker",
+    "feature": "Agent groups",
+    "what": "Functional queues with membership, a business calendar and an auto-assignment switch. Seed all 128."
+  },
+  {
+    "id": "MFI-018",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M1 Users, Roles & Access",
+    "submodule": "Directory",
+    "priority": "P0 Blocker",
+    "feature": "Requester directory and lifecycle",
+    "what": "A requester directory with lifecycle states and controlled deactivation."
+  },
+  {
+    "id": "MFI-019",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M1 Users, Roles & Access",
+    "submodule": "Groups & routing",
+    "priority": "P1 High",
+    "feature": "Automatic assignment within a group",
+    "what": "Round-robin or least-loaded assignment for the 33 groups that have auto-assign switched on."
+  },
+  {
+    "id": "MFI-020",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M1 Users, Roles & Access",
+    "submodule": "Directory",
+    "priority": "P1 High",
+    "feature": "Departments",
+    "what": "A department model that doubles as an approver directory."
+  },
+  {
+    "id": "MFI-021",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M1 Users, Roles & Access",
+    "submodule": "Account settings",
+    "priority": "P1 High",
+    "feature": "Account and localisation settings",
+    "what": "Account-level locale, formatting and identifier settings that every other module reads."
+  },
+  {
+    "id": "MFI-022",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M1 Users, Roles & Access",
+    "submodule": "Security settings",
+    "priority": "P1 High",
+    "feature": "Security policy settings",
+    "what": "Session lifetime, public URL authentication, ticket sharing, domain restriction and attachment policy."
+  },
+  {
+    "id": "MFI-023",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M1 Users, Roles & Access",
+    "submodule": "Roles & permissions",
+    "priority": "P1 High",
+    "feature": "Privilege catalogue",
+    "what": "A named-privilege catalogue underneath the role model, sized to the real permission surface."
+  },
+  {
+    "id": "MFI-024",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M2 Channels & Email",
+    "submodule": "Inbound",
+    "priority": "P0 Blocker",
+    "feature": "Multi-mailbox inbound ingestion",
+    "what": "Ingest mail from all 88 support addresses and create or update a ticket for each message."
+  },
+  {
+    "id": "MFI-025",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M2 Channels & Email",
+    "submodule": "Inbound",
+    "priority": "P0 Blocker",
+    "feature": "MIME parsing",
+    "what": "Parse real-world email: multipart bodies, inline images, Outlook TNEF attachments, encodings and signatures."
+  },
+  {
+    "id": "MFI-026",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M2 Channels & Email",
+    "submodule": "Inbound",
+    "priority": "P0 Blocker",
+    "feature": "Thread matching",
+    "what": "Match replies onto the correct existing ticket using mail headers and the subject id token."
+  },
+  {
+    "id": "MFI-027",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M2 Channels & Email",
+    "submodule": "Outbound",
+    "priority": "P0 Blocker",
+    "feature": "Outbound mail and per-domain identity",
+    "what": "Send replies and notifications from the correct mailbox identity, signed for that domain."
+  },
+  {
+    "id": "MFI-028",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M2 Channels & Email",
+    "submodule": "Notifications",
+    "priority": "P0 Blocker",
+    "feature": "Lifecycle notification templates",
+    "what": "Templated email for every lifecycle event, addressed separately to requesters and agents."
+  },
+  {
+    "id": "MFI-029",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M2 Channels & Email",
+    "submodule": "Inbound",
+    "priority": "P1 High",
+    "feature": "Sender authentication and spam controls",
+    "what": "Validate SPF and DKIM on inbound mail and quarantine what fails."
+  },
+  {
+    "id": "MFI-030",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M2 Channels & Email",
+    "submodule": "Inbound",
+    "priority": "P1 High",
+    "feature": "Auto-reply loop suppression",
+    "what": "Detect automated mail and suppress outbound acknowledgements to it."
+  },
+  {
+    "id": "MFI-031",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M2 Channels & Email",
+    "submodule": "Notifications",
+    "priority": "P1 High",
+    "feature": "Notification template matrix",
+    "what": "The complete notification matrix: four audiences, five entity types, with per-event enable switches."
+  },
+  {
+    "id": "MFI-032",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M2 Channels & Email",
+    "submodule": "Notifications",
+    "priority": "P2 Medium",
+    "feature": "In-app notification centre",
+    "what": "A notification bell with per-event preferences and an approvals filter."
+  },
+  {
+    "id": "MFI-033",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M3 Ticket Core & SLA",
+    "submodule": "Ticket model",
+    "priority": "P0 Blocker",
+    "feature": "Ticket record and identifiers",
+    "what": "The core ticket entity with human-readable identifiers per record type."
+  },
+  {
+    "id": "MFI-034",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M3 Ticket Core & SLA",
+    "submodule": "Ticket model",
+    "priority": "P0 Blocker",
+    "feature": "Status model - all 25 statuses",
+    "what": "Implement the full 25-status model, not a simplified five-state lifecycle."
+  },
+  {
+    "id": "MFI-035",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M3 Ticket Core & SLA",
+    "submodule": "Ticket model",
+    "priority": "P0 Blocker",
+    "feature": "Custom field engine - 187 slots",
+    "what": "A dynamic field engine supporting the 182 configured fields and their per-audience behaviour."
+  },
+  {
+    "id": "MFI-036",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M3 Ticket Core & SLA",
+    "submodule": "SLA",
+    "priority": "P0 Blocker",
+    "feature": "SLA policy engine - 21 policies",
+    "what": "Match a ticket to an SLA policy by condition, then set response and resolution targets per priority."
+  },
+  {
+    "id": "MFI-037",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M3 Ticket Core & SLA",
+    "submodule": "SLA",
+    "priority": "P0 Blocker",
+    "feature": "Business calendars and holidays",
+    "what": "Six working calendars with holiday sets, assigned per group and used by the SLA clock."
+  },
+  {
+    "id": "MFI-038",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M3 Ticket Core & SLA",
+    "submodule": "Ticket model",
+    "priority": "P1 High",
+    "feature": "Moglix commerce field set",
+    "what": "The commerce and finance fields that make this desk different from a generic helpdesk."
+  },
+  {
+    "id": "MFI-039",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M3 Ticket Core & SLA",
+    "submodule": "Ticket model",
+    "priority": "P1 High",
+    "feature": "Classification and closure taxonomy",
+    "what": "Category, subcategory and item classification plus a closure reason taxonomy."
+  },
+  {
+    "id": "MFI-040",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M3 Ticket Core & SLA",
+    "submodule": "SLA",
+    "priority": "P1 High",
+    "feature": "SLA breach recording",
+    "what": "Record breaches with a mandatory reason so breaches are explainable, not just counted."
+  },
+  {
+    "id": "MFI-041",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M3 Ticket Core & SLA",
+    "submodule": "Closure",
+    "priority": "P1 High",
+    "feature": "Resolution note capture",
+    "what": "Capture what was actually done, in a structured resolution field."
+  },
+  {
+    "id": "MFI-042",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M6 Agent Workbench",
+    "submodule": "Queue",
+    "priority": "P0 Blocker",
+    "feature": "Ticket list view",
+    "what": "A filterable, sortable, inline-editable ticket list - the screen agents live in."
+  },
+  {
+    "id": "MFI-043",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M6 Agent Workbench",
+    "submodule": "Ticket detail",
+    "priority": "P0 Blocker",
+    "feature": "Ticket detail layout",
+    "what": "The three-region ticket screen: header actions, body thread, right-rail properties."
+  },
+  {
+    "id": "MFI-044",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M6 Agent Workbench",
+    "submodule": "Ticket detail",
+    "priority": "P0 Blocker",
+    "feature": "Conversation thread and composer",
+    "what": "A single timeline of public replies, private notes and forwards, with a rich composer."
+  },
+  {
+    "id": "MFI-045",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M6 Agent Workbench",
+    "submodule": "Ticket detail",
+    "priority": "P0 Blocker",
+    "feature": "Ticket actions",
+    "what": "Pick up, share, watch, edit, close, merge, spam, delete and archive."
+  },
+  {
+    "id": "MFI-046",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M6 Agent Workbench",
+    "submodule": "Queue",
+    "priority": "P1 High",
+    "feature": "Saved views",
+    "what": "The 14 saved ticket views plus agent-defined saved filters."
+  },
+  {
+    "id": "MFI-047",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M6 Agent Workbench",
+    "submodule": "Queue",
+    "priority": "P1 High",
+    "feature": "Filter panel",
+    "what": "A basic and advanced filter panel over the queue."
+  },
+  {
+    "id": "MFI-048",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M6 Agent Workbench",
+    "submodule": "Ticket detail",
+    "priority": "P1 High",
+    "feature": "Activity history",
+    "what": "A per-ticket change history covering every field change and action."
+  },
+  {
+    "id": "MFI-049",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M7 Requester Portal",
+    "submodule": "Portal",
+    "priority": "P0 Blocker",
+    "feature": "Portal home",
+    "what": "The employee landing page: search, shortcuts, announcements and popular items."
+  },
+  {
+    "id": "MFI-050",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M7 Requester Portal",
+    "submodule": "Portal",
+    "priority": "P0 Blocker",
+    "feature": "Raise a ticket from the portal",
+    "what": "A generic incident form plus the catalog request path."
+  },
+  {
+    "id": "MFI-051",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M7 Requester Portal",
+    "submodule": "Portal",
+    "priority": "P0 Blocker",
+    "feature": "My requests",
+    "what": "A requester list of their own tickets with status and history."
+  },
+  {
+    "id": "MFI-052",
+    "phase": "Phase 1 - MVP core desk",
+    "module": "M7 Requester Portal",
+    "submodule": "Portal",
+    "priority": "P0 Blocker",
+    "feature": "Requester conversation and reply",
+    "what": "Let requesters reply and attach files from the portal, not only by email."
+  }
+]
+TOTAL 52

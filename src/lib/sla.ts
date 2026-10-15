@@ -1,3 +1,6 @@
+import { toZonedTime } from 'date-fns-tz';
+import { BUSINESS_TIMEZONE, isHoliday } from './holidays';
+
 const BUSINESS_START = 9;
 const BUSINESS_END = 18;
 
@@ -6,14 +9,15 @@ export function addBusinessHours(from: Date, hours: number): Date {
   const result = new Date(from);
 
   while (remaining > 0) {
-    const day = result.getDay();
-    if (day === 0 || day === 6) {
+    const zoned = toZonedTime(result, BUSINESS_TIMEZONE);
+    const day = zoned.getDay();
+    if (day === 0 || day === 6 || isHoliday(result)) {
       result.setDate(result.getDate() + 1);
       result.setHours(BUSINESS_START, 0, 0, 0);
       continue;
     }
 
-    const hour = result.getHours() + result.getMinutes() / 60;
+    const hour = zoned.getHours() + zoned.getMinutes() / 60;
     if (hour < BUSINESS_START) {
       result.setHours(BUSINESS_START, 0, 0, 0);
       continue;
@@ -60,7 +64,7 @@ export function evaluateSlaBreach(
   return false;
 }
 
-/** Prototype: 18 business hours after resolve ≈ 2 business days simplified */
+/** 18 business hours after resolve (workbook supervisor auto-close rule) */
 export function shouldAutoClose(resolvedAt: string, now = new Date()): boolean {
   const resolved = new Date(resolvedAt);
   const closeAt = addBusinessHours(resolved, 18);

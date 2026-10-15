@@ -2,14 +2,16 @@
 
 Local clones live under `c:\rushilProcess\open_source_repos\`.
 
-| OSS project | PRD area | What we reused in prototype |
-|-------------|----------|----------------------------|
-| **Zammad** | Core desk, email, threading, Object Manager | `INC-` subject threading, public vs internal notes, group/mailbox routing, SLA breach flag, ticket counter continuity |
-| **GLPI** | ITIL catalog, approvals, assets (post-MVP) | Status taxonomy with approval-wait states; commerce custom fields placeholder |
-| **osTicket / RT** | Email helpdesk patterns | Inbound simulator, outbox instead of SMTP for local dev |
-| **Snipe-IT** | Asset association (explicitly out of MVP) | Not implemented — PRD excludes Associate Asset |
-| **n8n** (planned) | Automations | Auto-close job endpoint mirrors scheduled automation |
-| **Metabase** (planned) | Supervisor reporting | CSV export + aggregate counts |
+| OSS / license | Module in prototype | Pattern source |
+|--------------|---------------------|----------------|
+| **handlebars** (MIT) | `notifications.ts`, `canned-responses.ts` | Lifecycle mail + canned/text modules |
+| **fuse.js** (MIT) | `search.ts` | Queue search |
+| **mailparser** (MIT) | `email-parser.ts` | MIME parse + Auto-Submitted / bounce headers |
+| **date-fns** (+ tz) (MIT) | `sla.ts`, lock TTL | Business hours + expire locks |
+| **osTicket** (GPL — pattern only) | `ticket-lock.ts`, canned shortcuts | Concurrent edit lock |
+| **Zammad / RT** (AGPL/GPL — pattern only) | `ticket-relations.ts` | Merge, related links, tags |
+
+No AGPL/GPL source pasted — algorithms reimplemented under MIT stack.
 
 ## Why custom prototype vs Zammad fork?
 
